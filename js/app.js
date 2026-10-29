@@ -3,6 +3,8 @@
   const SUITS = ['♠', '♥', '♦', '♣'];
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
   const DECKS = 6;
+  const BET = 10, START = 1000; // Play mode: flat $10 bets from a $1,000 bankroll
+  const usd = n => (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US');
   const { value, total, isPair } = Strategy;
 
   const store = {
@@ -18,13 +20,13 @@
     sound: store.get('sound', true),
     stats: Object.assign(freshStats(), store.get('stats', {})),
     misses: store.get('misses', {}),
-    bank: store.get('bank', 0),
+    bank: store.get('cash', START),
     shoe: [], dealer: [], hands: [], active: 0,
     phase: 'idle', // idle | decide | answered (drill) | busy | over (play)
     holeHidden: true, last: null, timer: 0,
   };
   const save = () => {
-    store.set('stats', st.stats); store.set('misses', st.misses); store.set('bank', st.bank);
+    store.set('stats', st.stats); store.set('misses', st.misses); store.set('cash', st.bank);
   };
 
   // ---------- sound: right / wrong cues, plus win / lose when a played hand settles ----------
@@ -223,7 +225,7 @@
       else { net = -h.bet; h.res = 'Lose'; }
       h.net = net; sum += net;
     }
-    st.bank += sum; save();
+    st.bank += sum * BET; save();
     if (sum) Sound.play(sum > 0 ? 'win' : 'lose');
     st.phase = 'over'; st.active = -1;
     render();
@@ -285,8 +287,8 @@
       const cls = ['hand'];
       if (multi && i === st.active && st.phase !== 'over') cls.push('active');
       if (h.net != null) cls.push(h.net > 0 ? 'won' : h.net < 0 ? 'lost' : 'pushed');
-      const bet = st.mode === 'play' ? `<span class="chip">${h.bet > 1 ? '2×' : '1×'}</span>` : '';
-      const res = h.res ? `<span class="res">${h.res}${h.net ? ` ${h.net > 0 ? '+' : '−'}${Math.abs(h.net)}` : ''}</span>` : '';
+      const bet = st.mode === 'play' ? `<span class="chip">${usd(h.bet * BET)}</span>` : '';
+      const res = h.res ? `<span class="res">${h.res}${h.net ? ` ${h.net > 0 ? '+' : ''}${usd(h.net * BET)}` : ''}</span>` : '';
       return `<div class="${cls.join(' ')}"><div class="cards">${h.cards.map(c => cardHTML(c)).join('')}</div>
         <div class="label">${bet}<span class="total">${h.cards.length ? totalLabel(h.cards, !h.split) : ''}</span>${res}</div></div>`;
     }).join('');
@@ -319,7 +321,7 @@
     ];
     if (st.mode === 'play') {
       const b = st.bank, shoe = st.shoe.length ? Math.round(100 * st.shoe.length / (DECKS * 52)) + '%' : '100%';
-      items.push(['Bankroll', (b > 0 ? '+' : b < 0 ? '−' : '') + Math.abs(b) + 'u', ''], ['Shoe', shoe, '']);
+      items.push(['Bankroll', usd(b), ''], ['Shoe', shoe, '']);
     }
     $('#stats').innerHTML = items.map(([k, v, sub]) =>
       `<div><span class="k">${k}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`).join('');
@@ -418,7 +420,7 @@
   $('#opt-sound').addEventListener('change', e => setSound(e.target.checked));
   $('#reset').addEventListener('click', () => {
     if (!confirm('Reset accuracy, streaks, missed spots and bankroll?')) return;
-    st.stats = freshStats(); st.misses = {}; st.bank = 0; save(); render(); renderChart();
+    st.stats = freshStats(); st.misses = {}; st.bank = START; save(); render(); renderChart();
   });
   // Buttons shouldn't keep focus, or Space would re-press them.
   document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.blur(); });
