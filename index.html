@@ -18,6 +18,9 @@
     <button data-mode="play" title="Play: full hands from a 6-deck shoe (T)">Play</button>
   </div>
   <div class="tools">
+    <button class="icon" id="btn-about" title="About and rules (A)" aria-label="About and rules">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.1"/></svg>
+    </button>
     <button class="icon" id="btn-chart" title="Strategy chart (C)" aria-label="Strategy chart">
       <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 3.5v17"/></svg>
     </button>
@@ -68,6 +71,36 @@
   <div id="chart-body"></div>
 </aside>
 
+<aside class="drawer" id="about" aria-hidden="true">
+  <div class="drawer-head">
+    <div><h2>About</h2><div class="sub">Standard basic strategy, graded on every decision</div></div>
+    <button class="icon close" data-close aria-label="Close">&times;</button>
+  </div>
+  <div class="about">
+    <h3>Rules</h3>
+    <ul>
+      <li>6 decks, reshuffled after 75% of the shoe</li>
+      <li>Blackjack pays <b>3:2</b></li>
+      <li>Dealer <b id="about-h17"></b> on soft 17</li>
+      <li>Dealer peeks for blackjack with an A or 10 up, so you only ever lose your original bet to it</li>
+      <li>Double on any first two cards; double after split <b id="about-das"></b></li>
+      <li>Split up to 4 hands; split aces get one card each; 21 after a split isn't blackjack</li>
+      <li>Late surrender <b id="about-surrender"></b></li>
+    </ul>
+    <p class="hint">Dealer soft 17, double after split and surrender can be changed in Settings. The chart and grading follow them.</p>
+    <h3>Modes</h3>
+    <ul>
+      <li><b>Drill</b>: random spots, skipping no-brainers (naturals, hard 18+). The dealer has already checked for blackjack.</li>
+      <li><b>Play</b>: full hands, flat $10 bets from a $1,000 bankroll.</li>
+    </ul>
+    <h3>Grading</h3>
+    <ul>
+      <li>Your move is checked against the chart for the current rules.</li>
+      <li>When the chart says double or surrender but you can't (3+ cards, or after a split), the fallback is correct: <b>Ds</b> means stand, otherwise hit.</li>
+    </ul>
+  </div>
+</aside>
+
 <aside class="drawer" id="settings" aria-hidden="true">
   <div class="drawer-head">
     <div><h2>Settings</h2><div class="sub">6 decks · dealer peeks · 3:2 blackjack</div></div>
@@ -98,6 +131,7 @@
     <dt><kbd>Space</kbd> <kbd>Enter</kbd></dt><dd>Deal / next</dd>
     <dt><kbd>T</kbd></dt><dd>Switch drill / play</dd>
     <dt><kbd>C</kbd></dt><dd>Strategy chart</dd>
+    <dt><kbd>A</kbd></dt><dd>About and rules</dd>
     <dt><kbd>M</kbd></dt><dd>Mute</dd>
     <dt><kbd>?</kbd></dt><dd>Settings</dd>
     <dt><kbd>Esc</kbd></dt><dd>Close panel</dd>

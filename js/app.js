@@ -379,6 +379,9 @@
     $('#rule-das').checked = st.rules.das;
     $('#rule-surrender').checked = st.rules.surrender;
     $('#opt-sound').checked = st.sound;
+    $('#about-h17').textContent = st.rules.h17 ? 'hits' : 'stands';
+    $('#about-das').textContent = st.rules.das ? 'allowed' : 'not allowed';
+    $('#about-surrender').textContent = st.rules.surrender ? 'allowed' : 'off';
     document.body.classList.toggle('muted', !st.sound);
   }
 
@@ -405,6 +408,7 @@
   $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
   $('#actions').addEventListener('click', e => { const b = e.target.closest('button'); if (b) act(b.dataset.a); });
   $('#next').addEventListener('click', deal);
+  $('#btn-about').addEventListener('click', () => openPanel('about'));
   $('#btn-chart').addEventListener('click', () => openPanel('chart'));
   $('#btn-settings').addEventListener('click', () => openPanel('settings'));
   $('#btn-sound').addEventListener('click', () => setSound(!st.sound));
@@ -435,6 +439,7 @@
     else if (KEYS[k]) act(KEYS[k]);
     else if (k === ' ' || k === 'enter' || k === 'n') deal();
     else if (k === 'c') openPanel('chart');
+    else if (k === 'a') openPanel('about');
     else if (k === '?' || k === '/') openPanel('settings');
     else if (k === 'm') setSound(!st.sound);
     else if (k === 't') setMode(st.mode === 'drill' ? 'play' : 'drill');

@@ -12,7 +12,7 @@ Live at **https://www.michael-han.com/blackjack/**
 
 ## Keys
 
-`H` hit · `S` stand · `D` double · `P` split · `R` surrender (or `1`–`5`) · `Space`/`Enter` deal / next · `T` drill/play · `C` chart · `M` mute · `?` settings · `Esc` close
+`H` hit · `S` stand · `D` double · `P` split · `R` surrender (or `1`–`5`) · `Space`/`Enter` deal / next · `T` drill/play · `C` chart · `A` about · `M` mute · `?` settings · `Esc` close
 
 ## Run
 
