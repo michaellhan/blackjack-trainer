@@ -110,7 +110,53 @@ const Strategy = (() => {
 
   const upLabel = u => (u === 11 ? 'A' : String(u));
 
-  return { UPS, value, total, isPair, classify, code, resolve, decide, NAMES, upLabel };
+  // Hi-Lo index plays for multi-deck: the Illustrious 18 (insurance is separate) and the Fab 4
+  // surrenders. Take `act` when the true count is at or above `idx` (below it, for `below`).
+  const INSURANCE = 3;
+  function deviations(R) {
+    return [
+      { t: 16, u: 10, idx: 0, act: 'stand' },
+      { t: 15, u: 10, idx: 4, act: 'stand' },
+      { pair: 10, u: 5, idx: 5, act: 'split' },
+      { pair: 10, u: 6, idx: 4, act: 'split' },
+      { t: 10, u: 10, idx: 4, act: 'double' },
+      { t: 12, u: 3, idx: 2, act: 'stand' },
+      { t: 12, u: 2, idx: 3, act: 'stand' },
+      ...(R.h17 ? [] : [{ t: 11, u: 11, idx: 1, act: 'double' }]),
+      { t: 9, u: 2, idx: 1, act: 'double' },
+      { t: 10, u: 11, idx: R.h17 ? 3 : 4, act: 'double' },
+      { t: 9, u: 7, idx: 3, act: 'double' },
+      { t: 16, u: 9, idx: 5, act: 'stand' },
+      { t: 13, u: 2, idx: -1, act: 'hit', below: true },
+      { t: 12, u: 4, idx: 0, act: 'hit', below: true },
+      { t: 12, u: 5, idx: -2, act: 'hit', below: true },
+      { t: 12, u: 6, idx: -1, act: 'hit', below: true },
+      { t: 13, u: 3, idx: -2, act: 'hit', below: true },
+      { t: 14, u: 10, idx: 3, act: 'surrender', sur: true },
+      { t: 15, u: 10, idx: 0, act: 'hit', below: true, sur: true },
+      { t: 15, u: 9, idx: 2, act: 'surrender', sur: true },
+      ...(R.h17 ? [] : [{ t: 15, u: 11, idx: 1, act: 'surrender', sur: true }]),
+    ];
+  }
+
+  // Like decide(), but at true count `tc`. `dev` is the index play for this spot (if any),
+  // `deviated` whether the count moved the play off basic strategy.
+  function countPlay(cards, up, R, avail, tc) {
+    const base = { ...decide(cards, up, R, avail), dev: null, deviated: false };
+    if (base.kind === 'soft' || (base.kind === 'pair' && base.key !== 10)) return base;
+    const list = deviations(R).filter(d => d.u === base.up && (base.kind === 'pair' ? d.pair === 10 : d.t === base.key));
+    const hit = d => (d.below ? tc < d.idx : tc >= d.idx);
+    const sur = avail.surrender ? list.find(d => d.sur) : null;
+    if (sur && hit(sur)) return { ...base, action: sur.act, dev: sur, deviated: true };
+    if (base.action === 'surrender') return { ...base, dev: sur };
+    for (const d of list) {
+      if (d.sur || (d.act === 'double' && !avail.double) || (d.act === 'split' && !avail.split)) continue;
+      return hit(d) ? { ...base, action: d.act, dev: d, deviated: true } : { ...base, dev: d };
+    }
+    return { ...base, dev: sur };
+  }
+
+  return { UPS, value, total, isPair, classify, code, resolve, decide, NAMES, upLabel, INSURANCE, deviations, countPlay };
 })();
 
 if (typeof module !== 'undefined') module.exports = Strategy;

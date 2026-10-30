@@ -68,5 +68,25 @@ eq(d('2,3,6', '6', S17, no), 'hit', 'hard 11 3 cards');
 eq(d('8,8', 'A', { h17: true, das: true, surrender: true }, { double: true, split: true, surrender: false }), 'split', '8,8 vs A no surrender');
 eq(d('8,8', 'T', S17, { double: true, split: false, surrender: false }), 'hit', '8,8 at split limit');
 eq(d('A,A', '6', S17, { double: true, split: false, surrender: false }), 'hit', 'A,A unsplittable');
+// Hi-Lo index plays: [hand, up, tc, rules, avail, expected action]
+const all = { double: true, split: true, surrender: false };
+const LS = { h17: false, das: true, surrender: true };
+const cp = (h, up, tc, R, av) => S.countPlay(h.split(',').map(card), card(up), R, av, tc).action;
+for (const [h, up, tc, R, av, exp] of [
+  ['T,6', 'T', -1, S17, all, 'hit'], ['T,6', 'T', 0, S17, all, 'stand'], ['9,7', 'T', 3, S17, all, 'stand'],
+  ['T,6', 'T', -3, LS, { ...all, surrender: true }, 'surrender'],
+  ['8,8', 'T', 5, S17, all, 'split'],
+  ['T,5', 'T', 3, S17, all, 'hit'], ['T,5', 'T', 4, S17, all, 'stand'],
+  ['T,5', 'T', -1, LS, { ...all, surrender: true }, 'hit'], ['T,5', 'T', 0, LS, { ...all, surrender: true }, 'surrender'],
+  ['T,4', 'T', 3, LS, { ...all, surrender: true }, 'surrender'], ['T,4', 'T', 2, LS, { ...all, surrender: true }, 'hit'],
+  ['T,T', '5', 4, S17, all, 'stand'], ['T,T', '5', 5, S17, all, 'split'], ['K,Q', '6', 4, S17, all, 'split'],
+  ['T,T', '6', 6, S17, { ...all, split: false }, 'stand'],
+  ['6,4', 'T', 4, S17, all, 'double'], ['6,4', 'T', 3, S17, all, 'hit'], ['2,4,4', 'T', 6, S17, no, 'hit'],
+  ['T,2', '3', 2, S17, all, 'stand'], ['T,2', '2', 2, S17, all, 'hit'], ['T,2', '2', 3, S17, all, 'stand'],
+  ['T,2', '4', -1, S17, all, 'hit'], ['T,2', '4', 0, S17, all, 'stand'], ['T,3', '2', -2, S17, all, 'hit'],
+  ['6,5', 'A', 0, S17, all, 'hit'], ['6,5', 'A', 1, S17, all, 'double'],
+  ['5,4', '2', 1, S17, all, 'double'], ['5,4', '7', 3, S17, all, 'double'], ['6,4', 'A', 4, S17, all, 'double'],
+  ['T,6', '9', 5, S17, all, 'stand'], ['A,6', '2', 9, S17, all, 'hit'],
+]) eq(cp(h, up, tc, R, av), exp, `index ${h} vs ${up} at TC ${tc}`);
 console.log(fails ? `${fails}/${n} checks failed` : `all ${n} checks passed`);
 process.exit(fails ? 1 : 0);

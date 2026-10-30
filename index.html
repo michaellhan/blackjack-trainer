@@ -35,6 +35,9 @@
 </header>
 
 <div class="stats" id="stats"></div>
+<nav class="count-nav">
+  <div class="seg small" data-cfg="type"><button data-v="running">Running count</button><button data-v="true">True count</button><button data-v="game">Game</button></div>
+</nav>
 
 <main class="table" id="table">
   <section class="side dealer">
@@ -44,7 +47,6 @@
 
   <section class="count-view" id="count-view">
     <div class="count-config" id="count-config">
-      <div class="seg small" data-cfg="type"><button data-v="running">Running count</button><button data-v="true">True count</button></div>
       <div class="seg small" data-cfg="speed"><button data-v="slow">Slow</button><button data-v="medium">Medium</button><button data-v="fast">Fast</button><button data-v="pro">Pro</button></div>
       <div class="seg small" data-cfg="len"><button data-v="10">10 cards</button><button data-v="20">20</button><button data-v="52">52</button></div>
       <div class="seg small" data-cfg="per"><button data-v="1">1 at a time</button><button data-v="2">2</button></div>
@@ -67,6 +69,17 @@
     <button data-a="double">Double<kbd>D</kbd></button>
     <button data-a="split">Split<kbd>P</kbd></button>
     <button data-a="surrender">Surrender<kbd>R</kbd></button>
+  </div>
+  <div class="choice" id="bet-row" hidden>
+    <button data-bet="1">$10<kbd>1</kbd></button>
+    <button data-bet="2">$20<kbd>2</kbd></button>
+    <button data-bet="4">$40<kbd>3</kbd></button>
+    <button data-bet="6">$60<kbd>4</kbd></button>
+    <button data-bet="8">$80<kbd>5</kbd></button>
+  </div>
+  <div class="choice" id="ins-row" hidden>
+    <button data-ins="1">Insurance<kbd>Y</kbd></button>
+    <button data-ins="0">No insurance<kbd>N</kbd></button>
   </div>
   <div class="count-input" id="count-input" hidden>
     <button data-step="-1" aria-label="Minus one">−</button>
@@ -114,11 +127,14 @@
       <li><b>Drill</b>: random spots, skipping no-brainers (naturals, hard 18+). The dealer has already checked for blackjack.</li>
       <li><b>Play</b>: full hands, flat $10 bets from a $1,000 bankroll.</li>
       <li><b>Count</b>: Hi-Lo drills. Running count flashes cards at your speed, then asks the count. True count gives a running count and decks left.</li>
+      <li><b>Game</b> (under Count): a full shoe where you count while you play. Bet off the true count, decide on insurance, and use the index plays. Every bet and play is graded, with random count checks and a summary after each shoe.</li>
     </ul>
     <h3>Counting</h3>
     <ul>
       <li>Hi-Lo: 2–6 are <b>+1</b>, 7–9 are <b>0</b>, 10s and aces are <b>−1</b>.</li>
       <li>True count = running count ÷ decks left. Rounding or flooring are both accepted.</li>
+      <li>Game bets: <b>$10</b> up to TC +1, then <b>$20 / $40 / $60 / $80</b> at +2 / +3 / +4 / +5 and up.</li>
+      <li>Game plays use basic strategy plus the Illustrious 18 and Fab 4 index plays (insurance at TC +3). They're listed in the chart (C).</li>
       <li>In Play, press <b>K</b> anytime to check your count of every card seen this shoe (the hole card counts once it's flipped). The count resets with each new shoe.</li>
     </ul>
     <h3>Grading</h3>
@@ -148,7 +164,7 @@
   </div>
   <label class="opt toggle"><span>Double after split</span><input type="checkbox" id="rule-das"><i></i></label>
   <label class="opt toggle"><span>Late surrender</span><input type="checkbox" id="rule-surrender"><i></i></label>
-  <label class="opt toggle"><span>Show count in Play</span><input type="checkbox" id="opt-showcount"><i></i></label>
+  <label class="opt toggle"><span>Show count in Play and Game</span><input type="checkbox" id="opt-showcount"><i></i></label>
   <label class="opt toggle"><span>Sound effects</span><input type="checkbox" id="opt-sound"><i></i></label>
   <div class="opt-label keys-title">Keyboard</div>
   <dl class="keys">
@@ -158,7 +174,9 @@
     <dt><kbd>P</kbd> <kbd>4</kbd></dt><dd>Split</dd>
     <dt><kbd>R</kbd> <kbd>5</kbd></dt><dd>Surrender</dd>
     <dt><kbd>Space</kbd> <kbd>Enter</kbd></dt><dd>Deal / next / start run</dd>
-    <dt><kbd>K</kbd></dt><dd>Check your count (Play)</dd>
+    <dt><kbd>K</kbd></dt><dd>Check your count (Play, Game)</dd>
+    <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Bet $10–$80 (Game)</dd>
+    <dt><kbd>Y</kbd> <kbd>N</kbd></dt><dd>Insurance yes / no (Game)</dd>
     <dt><kbd>0</kbd>–<kbd>9</kbd> <kbd>−</kbd></dt><dd>Type a count (<kbd>↑</kbd> <kbd>↓</kbd> to step)</dd>
     <dt><kbd>T</kbd></dt><dd>Switch drill / play / count</dd>
     <dt><kbd>C</kbd></dt><dd>Strategy chart</dd>
