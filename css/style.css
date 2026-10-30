@@ -204,10 +204,6 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 .mini.z b, .hilo-key .z { color: var(--muted); }
 .hilo-key { font-size: 12.5px; color: rgba(236, 235, 230, 0.55); }
 .hilo-key b { font-weight: 600; }
-.tc-spot { display: flex; gap: 48px; }
-.tc-spot div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.tc-spot .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(236, 235, 230, 0.55); }
-.tc-spot .v { font-size: 44px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .feedback .prompt { font-weight: 600; color: var(--gold); }
 
 .choice { display: flex; gap: 8px; width: 100%; max-width: 680px; }
@@ -365,9 +361,7 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
   .count-config { gap: 6px; }
   .count-stage .card { width: 84px; height: 118px; }
   .count-stage .card .pip { font-size: 42px; }
-  .tc-spot { gap: 32px; }
-  .tc-spot .v { font-size: 38px; }
-  .count-input [data-step] { width: 56px; }
+      .count-input [data-step] { width: 56px; }
   .count-input .submit { padding: 0 16px; }
 }
 @media (hover: none) { kbd { display: none; } }

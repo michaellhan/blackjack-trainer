@@ -16,7 +16,7 @@
   <div class="seg" id="mode" role="tablist" aria-label="Mode">
     <button data-mode="drill" title="Drill: random decisions, graded instantly (T)">Drill</button>
     <button data-mode="play" title="Play: full hands from a 6-deck shoe (T)">Play</button>
-    <button data-mode="count" title="Count: Hi-Lo card counting drills (T)">Count</button>
+    <button data-mode="count" title="Count: play a shoe while counting, betting and using index plays (T)">Count</button>
   </div>
   <div class="tools">
     <button class="icon" id="btn-about" title="About and rules (A)" aria-label="About and rules">
@@ -36,7 +36,7 @@
 
 <div class="stats" id="stats"></div>
 <nav class="count-nav">
-  <div class="seg small" data-cfg="type"><button data-v="running">Running count</button><button data-v="true">True count</button><button data-v="game">Game</button></div>
+  <div class="seg small" data-cfg="type"><button data-v="game">Game</button><button data-v="running">Running count drill</button></div>
 </nav>
 
 <main class="table" id="table">
@@ -126,8 +126,8 @@
     <ul>
       <li><b>Drill</b>: random spots, skipping no-brainers (naturals, hard 18+). The dealer has already checked for blackjack.</li>
       <li><b>Play</b>: full hands, flat $10 bets from a $1,000 bankroll.</li>
-      <li><b>Count</b>: Hi-Lo drills. Running count flashes cards at your speed, then asks the count. True count gives a running count and decks left.</li>
-      <li><b>Game</b> (under Count): a full shoe where you count while you play. Bet off the true count, decide on insurance, and use the index plays. Every bet and play is graded, with random count checks and a summary after each shoe.</li>
+      <li><b>Count</b>: a full shoe where you count while you play. Bet off the true count, decide on insurance, and use the index plays. Every bet and play is graded, with random count checks and a summary after each shoe.</li>
+      <li><b>Running count drill</b> (under Count): cards flash at your speed, then you enter the count.</li>
     </ul>
     <h3>Counting</h3>
     <ul>

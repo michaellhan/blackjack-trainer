@@ -33,15 +33,16 @@
     holeHidden: true, last: null, timer: 0,
     // Counting: drill settings and stats, the current run / true-count spot, the open count prompt,
     // and every card dealt from the Play shoe.
-    cnt: Object.assign({ type: 'running', speed: 'medium', len: 20, per: 1 }, store.get('count', {})),
+    cnt: Object.assign({ type: 'game', speed: 'medium', len: 20, per: 1 }, store.get('count', {})),
     cstats: Object.assign(freshCount(), store.get('cstats', {})),
     showCount: store.get('showCount', false),
-    run: null, tc: null, cin: null, runId: 0, dealt: [],
+    run: null, cin: null, runId: 0, dealt: [],
     // Counting game: its own bankroll, lifetime stats, this shoe's stats, and the insurance bet.
     gbank: store.get('gcash', START),
     gstats: Object.assign(freshGame(), store.get('gstats', {})),
     gshoe: freshGame(), ins: 0,
   };
+  if (st.cnt.type !== 'running') st.cnt.type = 'game'; // the old true-count drill is gone
   const inGame = () => st.mode === 'count' && st.cnt.type === 'game';
   const shoeMode = () => st.mode === 'play' || inGame();
   const save = () => {
@@ -369,13 +370,7 @@
   async function startCount() {
     if (st.phase === 'running' || st.cin) return;
     clearTimeout(st.timer);
-    setFeedback(''); st.run = st.tc = null;
-    if (st.cnt.type === 'true') {
-      // Decks left 1–5.5; aim for true counts around −3…+6 so the division matters.
-      const decks = 1 + (Math.random() * 10 | 0) / 2, target = -3 + Math.random() * 9;
-      st.tc = { rc: Math.round(target * decks), decks };
-      return ask('true');
-    }
+    setFeedback(''); st.run = null;
     const cards = shuffledShoe().slice(0, st.cnt.len);
     st.run = { cards, shown: 0, rc: cards.reduce((n, c) => n + hilo(c), 0) };
     st.phase = 'running'; render();
@@ -405,7 +400,7 @@
   function ask(kind) {
     if (kind !== 'play') st.phase = 'answer';
     st.cin = { kind, text: '' };
-    setFeedback(`<span class="prompt">${kind === 'true' ? 'True count?' : 'Running count?'}</span>`);
+    setFeedback('<span class="prompt">Running count?</span>');
     render();
   }
 
@@ -428,11 +423,7 @@
     const c = st.cin; if (!c) return;
     const ans = parseInt(c.text, 10) || 0;
     let ok, detail;
-    if (c.kind === 'true') {
-      const x = st.tc.rc / st.tc.decks;
-      ok = [Math.round(x), Math.trunc(x), Math.floor(x)].includes(ans);
-      detail = `${signed(st.tc.rc)} ÷ ${st.tc.decks} decks = ${ok ? signed(x, 1) : `<b>${signed(x, 1)}</b>`}`;
-    } else if (c.kind === 'play') {
+    if (c.kind === 'play') {
       const p = playCount();
       ok = ans === p.rc;
       detail = `${ok ? 'Running count' : `Running count is <b>${signed(p.rc)}</b>`} · true ${signed(p.tc, 1)} · ${p.decks.toFixed(1)} decks left`;
@@ -450,10 +441,7 @@
     Sound.play(ok ? 'right' : 'wrong');
     setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${signed(ans)}</span><span class="spot">${detail}</span>`);
     st.cin = null;
-    if (c.kind !== 'play') {
-      st.phase = 'answered';
-      if (ok && c.kind === 'true') st.timer = setTimeout(startCount, 900);
-    }
+    if (c.kind !== 'play') st.phase = 'answered';
     render();
   }
 
@@ -466,10 +454,7 @@
       g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(st.cnt[k])));
     });
     let html = '';
-    if (st.tc) {
-      html = `<div class="tc-spot"><div><span class="k">Running count</span><span class="v">${signed(st.tc.rc)}</span></div>
-        <div><span class="k">Decks left</span><span class="v">${st.tc.decks}</span></div></div>`;
-    } else if (st.run) {
+    if (st.run) {
       const { cards, shown } = st.run;
       if (st.phase === 'running') {
         const cur = shown ? cards.slice(Math.max(0, shown - st.cnt.per), shown) : [];
@@ -485,9 +470,7 @@
         }).join('')}</div>`;
       }
     } else {
-      html = `<div class="count-intro">${st.cnt.type === 'true'
-        ? 'Divide the running count by the decks left.'
-        : `Keep a running count as ${st.cnt.len} cards flash by, then enter it.`}</div>`;
+      html = `<div class="count-intro">Keep a running count as ${st.cnt.len} cards flash by, then enter it.</div>`;
     }
     $('#count-stage').innerHTML = html;
   }
@@ -547,7 +530,7 @@
     next.disabled = deciding || ['busy', 'running', 'bet', 'insure'].includes(st.phase);
     next.firstChild.textContent = inGame() ? (st.phase === 'bet' ? 'Place a bet' : 'Next hand')
       : st.mode === 'count'
-      ? (st.phase === 'running' ? 'Counting…' : st.phase === 'idle' ? 'Start' : st.cnt.type === 'true' ? 'Next' : 'Next run')
+      ? (st.phase === 'running' ? 'Counting…' : st.phase === 'idle' ? 'Start' : 'Next run')
       : st.phase === 'idle' ? 'Deal' : st.mode === 'drill' ? 'Next hand' : 'Deal again';
     cin.hidden = !st.cin;
     if (st.cin) {
@@ -678,7 +661,7 @@
     clearTimeout(st.timer);
     st.mode = m; store.set('mode', m);
     st.dealer = []; st.hands = []; st.phase = 'idle'; st.last = null;
-    st.runId++; st.run = st.tc = st.cin = null;
+    st.runId++; st.run = st.cin = null;
     if (m === 'play' || inGame()) newShoe();
     setFeedback('');
     if (m === 'count' && !inGame()) render(); else deal();
@@ -697,7 +680,7 @@
     const k = b.closest('.seg').dataset.cfg;
     st.cnt[k] = k === 'len' || k === 'per' ? Number(b.dataset.v) : b.dataset.v;
     store.set('count', st.cnt);
-    clearTimeout(st.timer); st.runId++; st.run = st.tc = st.cin = null;
+    clearTimeout(st.timer); st.runId++; st.run = st.cin = null;
     st.dealer = []; st.hands = []; st.phase = 'idle'; st.last = null; setFeedback('');
     if (inGame()) { newShoe(); toBet(); } else render();
   });
