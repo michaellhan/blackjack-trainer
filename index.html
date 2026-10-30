@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e1110">
 <title>Blackjack Trainer</title>
-<meta name="description" content="A minimal basic-strategy blackjack trainer: hit, stand, double, split or surrender, graded on every decision.">
+<meta name="description" content="A minimal blackjack trainer: basic strategy (hit, stand, double, split, surrender) and Hi-Lo card counting, graded as you go.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2223%22 fill=%22%23163a2c%22/><text x=%2250%22 y=%2270%22 font-size=%2260%22 text-anchor=%22middle%22 fill=%22%23f4f1ea%22 font-family=%22Georgia,serif%22>21</text></svg>">
 <link rel="stylesheet" href="css/style.css">
 <script data-goatcounter="https://mhan.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
@@ -16,6 +16,7 @@
   <div class="seg" id="mode" role="tablist" aria-label="Mode">
     <button data-mode="drill" title="Drill: random decisions, graded instantly (T)">Drill</button>
     <button data-mode="play" title="Play: full hands from a 6-deck shoe (T)">Play</button>
+    <button data-mode="count" title="Count: Hi-Lo card counting drills (T)">Count</button>
   </div>
   <div class="tools">
     <button class="icon" id="btn-about" title="About and rules (A)" aria-label="About and rules">
@@ -41,7 +42,18 @@
     <div class="cards" id="dealer-cards"></div>
   </section>
 
+  <section class="count-view" id="count-view">
+    <div class="count-config" id="count-config">
+      <div class="seg small" data-cfg="type"><button data-v="running">Running count</button><button data-v="true">True count</button></div>
+      <div class="seg small" data-cfg="speed"><button data-v="slow">Slow</button><button data-v="medium">Medium</button><button data-v="fast">Fast</button><button data-v="pro">Pro</button></div>
+      <div class="seg small" data-cfg="len"><button data-v="10">10 cards</button><button data-v="20">20</button><button data-v="52">52</button></div>
+      <div class="seg small" data-cfg="per"><button data-v="1">1 at a time</button><button data-v="2">2</button></div>
+    </div>
+    <div class="count-stage" id="count-stage"></div>
+  </section>
+
   <div class="feedback" id="feedback" aria-live="polite"></div>
+  <div class="hilo-key count-only">Hi-Lo: <b class="p">2–6 +1</b> · <b class="z">7–9 0</b> · <b class="n">10–A −1</b></div>
 
   <section class="side player">
     <div class="hands" id="hands"></div>
@@ -56,7 +68,16 @@
     <button data-a="split">Split<kbd>P</kbd></button>
     <button data-a="surrender">Surrender<kbd>R</kbd></button>
   </div>
-  <button class="next" id="next">Deal<kbd>Space</kbd></button>
+  <div class="count-input" id="count-input" hidden>
+    <button data-step="-1" aria-label="Minus one">−</button>
+    <output id="count-value">0</output>
+    <button data-step="1" aria-label="Plus one">+</button>
+    <button class="submit" id="count-submit">Submit<kbd>Enter</kbd></button>
+  </div>
+  <div class="bar-row">
+    <button class="count-check" id="count-check" title="Check your running count (K)">Count<kbd>K</kbd></button>
+    <button class="next" id="next">Deal<kbd>Space</kbd></button>
+  </div>
 </footer>
 
 <aside class="drawer" id="chart" aria-hidden="true">
@@ -73,7 +94,7 @@
 
 <aside class="drawer" id="about" aria-hidden="true">
   <div class="drawer-head">
-    <div><h2>About</h2><div class="sub">Standard basic strategy, graded on every decision</div></div>
+    <div><h2>About</h2><div class="sub">Basic strategy and Hi-Lo counting, graded as you go</div></div>
     <button class="icon close" data-close aria-label="Close">&times;</button>
   </div>
   <div class="about">
@@ -92,6 +113,13 @@
     <ul>
       <li><b>Drill</b>: random spots, skipping no-brainers (naturals, hard 18+). The dealer has already checked for blackjack.</li>
       <li><b>Play</b>: full hands, flat $10 bets from a $1,000 bankroll.</li>
+      <li><b>Count</b>: Hi-Lo drills. Running count flashes cards at your speed, then asks the count. True count gives a running count and decks left.</li>
+    </ul>
+    <h3>Counting</h3>
+    <ul>
+      <li>Hi-Lo: 2–6 are <b>+1</b>, 7–9 are <b>0</b>, 10s and aces are <b>−1</b>.</li>
+      <li>True count = running count ÷ decks left. Rounding or flooring are both accepted.</li>
+      <li>In Play, press <b>K</b> anytime to check your count of every card seen this shoe (the hole card counts once it's flipped). The count resets with each new shoe.</li>
     </ul>
     <h3>Grading</h3>
     <ul>
@@ -120,6 +148,7 @@
   </div>
   <label class="opt toggle"><span>Double after split</span><input type="checkbox" id="rule-das"><i></i></label>
   <label class="opt toggle"><span>Late surrender</span><input type="checkbox" id="rule-surrender"><i></i></label>
+  <label class="opt toggle"><span>Show count in Play</span><input type="checkbox" id="opt-showcount"><i></i></label>
   <label class="opt toggle"><span>Sound effects</span><input type="checkbox" id="opt-sound"><i></i></label>
   <div class="opt-label keys-title">Keyboard</div>
   <dl class="keys">
@@ -128,8 +157,10 @@
     <dt><kbd>D</kbd> <kbd>3</kbd></dt><dd>Double</dd>
     <dt><kbd>P</kbd> <kbd>4</kbd></dt><dd>Split</dd>
     <dt><kbd>R</kbd> <kbd>5</kbd></dt><dd>Surrender</dd>
-    <dt><kbd>Space</kbd> <kbd>Enter</kbd></dt><dd>Deal / next</dd>
-    <dt><kbd>T</kbd></dt><dd>Switch drill / play</dd>
+    <dt><kbd>Space</kbd> <kbd>Enter</kbd></dt><dd>Deal / next / start run</dd>
+    <dt><kbd>K</kbd></dt><dd>Check your count (Play)</dd>
+    <dt><kbd>0</kbd>–<kbd>9</kbd> <kbd>−</kbd></dt><dd>Type a count (<kbd>↑</kbd> <kbd>↓</kbd> to step)</dd>
+    <dt><kbd>T</kbd></dt><dd>Switch drill / play / count</dd>
     <dt><kbd>C</kbd></dt><dd>Strategy chart</dd>
     <dt><kbd>A</kbd></dt><dd>About and rules</dd>
     <dt><kbd>M</kbd></dt><dd>Mute</dd>

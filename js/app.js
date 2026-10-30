@@ -12,6 +12,7 @@
     set(k, v) { try { localStorage.setItem('bj:' + k, JSON.stringify(v)); } catch {} },
   };
   const freshStats = () => ({ n: 0, ok: 0, streak: 0, best: 0, kind: { hard: [0, 0], soft: [0, 0], pair: [0, 0] } });
+  const freshCount = () => ({ n: 0, ok: 0, streak: 0, best: 0 });
 
   const st = {
     mode: store.get('mode', 'drill'),
@@ -22,11 +23,17 @@
     misses: store.get('misses', {}),
     bank: store.get('cash', START),
     shoe: [], dealer: [], hands: [], active: 0,
-    phase: 'idle', // idle | decide | answered (drill) | busy | over (play)
+    phase: 'idle', // idle | decide | answered (drill) | busy | over (play) | running | answer (count)
     holeHidden: true, last: null, timer: 0,
+    // Counting: drill settings and stats, the current run / true-count spot, the open count prompt,
+    // and every card dealt from the Play shoe.
+    cnt: Object.assign({ type: 'running', speed: 'medium', len: 20, per: 1 }, store.get('count', {})),
+    cstats: Object.assign(freshCount(), store.get('cstats', {})),
+    showCount: store.get('showCount', false),
+    run: null, tc: null, cin: null, runId: 0, dealt: [],
   };
   const save = () => {
-    store.set('stats', st.stats); store.set('misses', st.misses); store.set('cash', st.bank);
+    store.set('stats', st.stats); store.set('misses', st.misses); store.set('cash', st.bank); store.set('cstats', st.cstats);
   };
 
   // ---------- sound: right / wrong cues, plus win / lose when a played hand settles ----------
@@ -64,13 +71,17 @@
   let cid = 0;
   const mk = (r, s) => ({ r, s: s || SUITS[Math.random() * 4 | 0], id: ++cid });
   const randCard = () => mk(RANKS[Math.random() * 13 | 0]);
-  function newShoe() {
+  function shuffledShoe() {
     const s = [];
     for (let d = 0; d < DECKS; d++) for (const r of RANKS) for (const su of SUITS) s.push(mk(r, su));
     for (let i = s.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [s[i], s[j]] = [s[j], s[i]]; }
-    st.shoe = s;
+    return s;
   }
-  const draw = () => (st.mode === 'drill' ? randCard() : st.shoe.pop());
+  function newShoe() { st.shoe = shuffledShoe(); st.dealt = []; }
+  function draw() {
+    if (st.mode === 'drill') return randCard();
+    const c = st.shoe.pop(); st.dealt.push(c); return c;
+  }
   const isBJ = cards => cards.length === 2 && total(cards).total === 21;
   const mkHand = cards => ({ cards, bet: 1, done: false, split: false, splitAces: false, surrendered: false, net: null, res: '' });
   const hand = () => st.hands[st.active];
@@ -110,6 +121,8 @@
 
   // ---------- round flow ----------
   async function deal() {
+    if (st.cin) return;
+    if (st.mode === 'count') return startCount();
     if (st.phase === 'busy' || st.phase === 'decide') return;
     clearTimeout(st.timer);
     st.last = null; st.holeHidden = true; st.active = 0;
@@ -124,7 +137,7 @@
     }
     st.phase = 'busy';
     if (st.shoe.length < DECKS * 52 * 0.25) {
-      newShoe(); setFeedback('<span class="muted">Shuffling a fresh shoe</span>');
+      newShoe(); setFeedback('<span class="muted">Shuffling a fresh shoe · count resets to 0</span>');
       st.dealer = []; st.hands = []; render(); await wait(500);
     }
     st.dealer = []; st.hands = [mkHand([])];
@@ -141,7 +154,7 @@
   }
 
   async function act(a) {
-    if (st.phase !== 'decide') return;
+    if (st.phase !== 'decide' || st.cin) return;
     const h = hand(), av = avail(h);
     if (!(a === 'hit' || a === 'stand' || av[a])) return bump(a);
     const d = Strategy.decide(h.cards, st.dealer[0], st.rules, av);
@@ -258,6 +271,134 @@
     b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope');
   }
 
+  // ---------- card counting (Hi-Lo) ----------
+  const hilo = c => ('23456'.includes(c.r) ? 1 : '789'.includes(c.r) ? 0 : -1);
+  const signed = (n, dp = 0) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(dp);
+  const SPEEDS = { slow: 1000, medium: 700, fast: 450, pro: 300 };
+
+  async function startCount() {
+    if (st.phase === 'running' || st.cin) return;
+    clearTimeout(st.timer);
+    setFeedback(''); st.run = st.tc = null;
+    if (st.cnt.type === 'true') {
+      // Decks left 1–5.5; aim for true counts around −3…+6 so the division matters.
+      const decks = 1 + (Math.random() * 10 | 0) / 2, target = -3 + Math.random() * 9;
+      st.tc = { rc: Math.round(target * decks), decks };
+      return ask('true');
+    }
+    const cards = shuffledShoe().slice(0, st.cnt.len);
+    st.run = { cards, shown: 0, rc: cards.reduce((n, c) => n + hilo(c), 0) };
+    st.phase = 'running'; render();
+    const id = ++st.runId;
+    await wait(350);
+    while (st.run && st.run.shown < cards.length) {
+      if (id !== st.runId) return;
+      st.run.shown = Math.min(cards.length, st.run.shown + st.cnt.per); render();
+      await wait(SPEEDS[st.cnt.speed]);
+    }
+    if (id === st.runId) ask('running');
+  }
+
+  // Visible Play count: every card dealt this shoe except a face-down hole card.
+  function playCount() {
+    const hole = st.holeHidden && st.dealer[1] ? st.dealer[1].id : null;
+    const rc = st.dealt.reduce((n, c) => n + (c.id === hole ? 0 : hilo(c)), 0);
+    const decks = (st.shoe.length + (hole ? 1 : 0)) / 52;
+    return { rc, decks, tc: rc / decks };
+  }
+
+  function checkCount() {
+    if (st.mode !== 'play' || st.phase === 'busy' || st.cin) return;
+    ask('play');
+  }
+
+  function ask(kind) {
+    if (kind !== 'play') st.phase = 'answer';
+    st.cin = { kind, text: '' };
+    setFeedback(`<span class="prompt">${kind === 'true' ? 'True count?' : 'Running count?'}</span>`);
+    render();
+  }
+
+  // Keyboard entry while a count prompt is open; returns true if the key was used.
+  function countKey(key) {
+    const c = st.cin;
+    if (/^[0-9]$/.test(key)) { if (c.text.replace('-', '').length < 3) c.text = (c.text === '0' ? '' : c.text) + key; }
+    else if (key === '-' || key === '_') c.text = c.text.startsWith('-') ? c.text.slice(1) : '-' + c.text;
+    else if (key === 'ArrowUp' || key === '+' || key === '=') return step(1), true;
+    else if (key === 'ArrowDown') return step(-1), true;
+    else if (key === 'Backspace') c.text = c.text.slice(0, -1);
+    else if (key === 'Enter') return submitCount(), true;
+    else if (key === 'Escape' && c.kind === 'play') { st.cin = null; setFeedback(''); render(); return true; }
+    else return false;
+    render(); return true;
+  }
+  function step(d) { st.cin.text = String((parseInt(st.cin.text, 10) || 0) + d); render(); }
+
+  function submitCount() {
+    const c = st.cin; if (!c) return;
+    const ans = parseInt(c.text, 10) || 0;
+    let ok, detail;
+    if (c.kind === 'true') {
+      const x = st.tc.rc / st.tc.decks;
+      ok = [Math.round(x), Math.trunc(x), Math.floor(x)].includes(ans);
+      detail = `${signed(st.tc.rc)} ÷ ${st.tc.decks} decks = ${ok ? signed(x, 1) : `<b>${signed(x, 1)}</b>`}`;
+    } else if (c.kind === 'play') {
+      const p = playCount();
+      ok = ans === p.rc;
+      detail = `${ok ? 'Running count' : `Running count is <b>${signed(p.rc)}</b>`} · true ${signed(p.tc, 1)} · ${p.decks.toFixed(1)} decks left`;
+    } else {
+      ok = ans === st.run.rc;
+      detail = ok ? `after ${st.run.cards.length} cards` : `The count was <b>${signed(st.run.rc)}</b>`;
+    }
+    const s = st.cstats;
+    s.n++;
+    if (ok) { s.ok++; s.streak++; s.best = Math.max(s.best, s.streak); } else s.streak = 0;
+    save();
+    Sound.play(ok ? 'right' : 'wrong');
+    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${signed(ans)}</span><span class="spot">${detail}</span>`);
+    st.cin = null;
+    if (c.kind !== 'play') {
+      st.phase = 'answered';
+      if (ok && c.kind === 'true') st.timer = setTimeout(startCount, 900);
+    }
+    render();
+  }
+
+  function renderCount() {
+    const busy = st.phase === 'running' || st.phase === 'answer';
+    $('#count-config').hidden = busy;
+    document.querySelectorAll('#count-config .seg').forEach(g => {
+      const k = g.dataset.cfg;
+      g.hidden = st.cnt.type === 'true' && k !== 'type';
+      g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(st.cnt[k])));
+    });
+    let html = '';
+    if (st.tc) {
+      html = `<div class="tc-spot"><div><span class="k">Running count</span><span class="v">${signed(st.tc.rc)}</span></div>
+        <div><span class="k">Decks left</span><span class="v">${st.tc.decks}</span></div></div>`;
+    } else if (st.run) {
+      const { cards, shown } = st.run;
+      if (st.phase === 'running') {
+        const cur = shown ? cards.slice(Math.max(0, shown - st.cnt.per), shown) : [];
+        html = `<div class="cards">${cur.map(c => cardHTML(c)).join('')}</div><div class="progress">${shown} / ${cards.length}</div>`;
+      } else if (st.phase === 'answer') {
+        html = `<div class="cards"><div class="card ghost">?</div></div><div class="progress">${cards.length} / ${cards.length}</div>`;
+      } else {
+        let rc = 0;
+        html = `<div class="review">${cards.map(c => {
+          const v = hilo(c); rc += v;
+          const red = c.s === '♥' || c.s === '♦' ? ' red' : '';
+          return `<span class="mini ${v > 0 ? 'p' : v < 0 ? 'n' : 'z'}${red}" title="count ${signed(rc)}">${c.r === 'T' ? '10' : c.r}${c.s}<b>${signed(v)}</b></span>`;
+        }).join('')}</div>`;
+      }
+    } else {
+      html = `<div class="count-intro">${st.cnt.type === 'true'
+        ? 'Divide the running count by the decks left.'
+        : `Keep a running count as ${st.cnt.len} cards flash by, then enter it.`}</div>`;
+    }
+    $('#count-stage').innerHTML = html;
+  }
+
   // ---------- rendering ----------
   const seen = new Set();
   function cardHTML(c, hidden) {
@@ -277,6 +418,8 @@
   }
 
   function render() {
+    document.body.dataset.mode = st.mode;
+    if (st.mode === 'count') renderCount();
     const hideHole = st.holeHidden && st.dealer.length > 1;
     $('#dealer-cards').innerHTML = st.dealer.map((c, i) => cardHTML(c, i === 1 && hideHole)).join('');
     const shown = hideHole ? [st.dealer[0]] : st.dealer;
@@ -303,9 +446,19 @@
       b.classList.toggle('right', !!graded && graded.action === a);
       b.classList.toggle('wrong', !!graded && !graded.ok && graded.chosen === a);
     });
-    const next = $('#next');
-    next.disabled = deciding || st.phase === 'busy';
-    next.firstChild.textContent = st.phase === 'idle' ? 'Deal' : st.mode === 'drill' ? 'Next hand' : 'Deal again';
+    const next = $('#next'), cin = $('#count-input');
+    next.disabled = deciding || st.phase === 'busy' || st.phase === 'running';
+    next.firstChild.textContent = st.mode === 'count'
+      ? (st.phase === 'running' ? 'Counting…' : st.phase === 'idle' ? 'Start' : st.cnt.type === 'true' ? 'Next' : 'Next run')
+      : st.phase === 'idle' ? 'Deal' : st.mode === 'drill' ? 'Next hand' : 'Deal again';
+    cin.hidden = !st.cin;
+    if (st.cin) {
+      $('#count-value').textContent = st.cin.text === '' ? '0' : st.cin.text.replace('-', '−');
+      $('#count-value').classList.toggle('empty', st.cin.text === '');
+    }
+    document.body.classList.toggle('asking', !!st.cin);
+    $('#count-check').hidden = st.mode !== 'play';
+    $('#count-check').disabled = st.phase === 'busy';
 
     document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
     renderStats();
@@ -313,7 +466,7 @@
   }
 
   function renderStats() {
-    const s = st.stats, pct = s.n ? Math.round(100 * s.ok / s.n) + '%' : '—';
+    const s = st.mode === 'count' ? st.cstats : st.stats, pct = s.n ? Math.round(100 * s.ok / s.n) + '%' : '—';
     const items = [
       ['Accuracy', pct, s.n ? `${s.ok}/${s.n}` : ''],
       ['Streak', s.streak, ''],
@@ -322,6 +475,7 @@
     if (st.mode === 'play') {
       const b = st.bank, shoe = st.shoe.length ? Math.round(100 * st.shoe.length / (DECKS * 52)) + '%' : '100%';
       items.push(['Bankroll', usd(b), ''], ['Shoe', shoe, '']);
+      if (st.showCount) { const p = playCount(); items.push(['Count', signed(p.rc), `true ${signed(p.tc, 1)}`]); }
     }
     $('#stats').innerHTML = items.map(([k, v, sub]) =>
       `<div><span class="k">${k}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`).join('');
@@ -379,6 +533,7 @@
     $('#rule-das').checked = st.rules.das;
     $('#rule-surrender').checked = st.rules.surrender;
     $('#opt-sound').checked = st.sound;
+    $('#opt-showcount').checked = st.showCount;
     $('#about-h17').textContent = st.rules.h17 ? 'hits' : 'stands';
     $('#about-das').textContent = st.rules.das ? 'allowed' : 'not allowed';
     $('#about-surrender').textContent = st.rules.surrender ? 'allowed' : 'off';
@@ -400,14 +555,27 @@
     clearTimeout(st.timer);
     st.mode = m; store.set('mode', m);
     st.dealer = []; st.hands = []; st.phase = 'idle'; st.last = null;
+    st.runId++; st.run = st.tc = st.cin = null;
     if (m === 'play' && !st.shoe.length) newShoe();
     setFeedback('');
-    deal();
+    if (m === 'count') render(); else deal();
   }
+  const MODES = ['drill', 'play', 'count'];
 
   $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
   $('#actions').addEventListener('click', e => { const b = e.target.closest('button'); if (b) act(b.dataset.a); });
   $('#next').addEventListener('click', deal);
+  $('#count-check').addEventListener('click', checkCount);
+  $('#count-submit').addEventListener('click', submitCount);
+  $('#count-input').addEventListener('click', e => { const b = e.target.closest('[data-step]'); if (b && st.cin) step(Number(b.dataset.step)); });
+  $('#count-config').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || st.phase === 'running') return;
+    const k = b.closest('.seg').dataset.cfg;
+    st.cnt[k] = k === 'len' || k === 'per' ? Number(b.dataset.v) : b.dataset.v;
+    store.set('count', st.cnt);
+    clearTimeout(st.timer); st.run = st.tc = null; st.phase = 'idle'; setFeedback(''); render();
+  });
+  $('#opt-showcount').addEventListener('change', e => { st.showCount = e.target.checked; store.set('showCount', st.showCount); render(); });
   $('#btn-about').addEventListener('click', () => openPanel('about'));
   $('#btn-chart').addEventListener('click', () => openPanel('chart'));
   $('#btn-settings').addEventListener('click', () => openPanel('settings'));
@@ -423,8 +591,8 @@
   $('#rule-surrender').addEventListener('change', e => setRules({ surrender: e.target.checked }));
   $('#opt-sound').addEventListener('change', e => setSound(e.target.checked));
   $('#reset').addEventListener('click', () => {
-    if (!confirm('Reset accuracy, streaks, missed spots and bankroll?')) return;
-    st.stats = freshStats(); st.misses = {}; st.bank = START; save(); render(); renderChart();
+    if (!confirm('Reset accuracy, streaks, missed spots, counting stats and bankroll?')) return;
+    st.stats = freshStats(); st.cstats = freshCount(); st.misses = {}; st.bank = START; save(); render(); renderChart();
   });
   // Buttons shouldn't keep focus, or Space would re-press them.
   document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.blur(); });
@@ -433,6 +601,7 @@
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     if (e.target.closest?.('input, textarea, select')) return;
+    if (st.cin && countKey(e.key)) return e.preventDefault();
     const k = e.key.toLowerCase();
     let handled = true;
     if (k === 'escape') closePanels();
@@ -442,7 +611,8 @@
     else if (k === 'a') openPanel('about');
     else if (k === '?' || k === '/') openPanel('settings');
     else if (k === 'm') setSound(!st.sound);
-    else if (k === 't') setMode(st.mode === 'drill' ? 'play' : 'drill');
+    else if (k === 'k') checkCount();
+    else if (k === 't') setMode(MODES[(MODES.indexOf(st.mode) + 1) % MODES.length]);
     else handled = false;
     if (handled) e.preventDefault();
   });
@@ -450,5 +620,5 @@
   if (st.mode === 'play') newShoe();
   syncSettings();
   render();
-  deal();
+  if (st.mode !== 'count') deal();
 })();
