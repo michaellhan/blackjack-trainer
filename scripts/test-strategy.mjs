@@ -71,6 +71,8 @@ eq(d('A,A', '6', S17, { double: true, split: false, surrender: false }), 'hit', 
 // Hi-Lo index plays: [hand, up, tc, rules, avail, expected action]
 const all = { double: true, split: true, surrender: false };
 const LS = { h17: false, das: true, surrender: true };
+const H = { h17: true, das: true, surrender: false };
+const HLS = { ...H, surrender: true };
 const cp = (h, up, tc, R, av) => S.countPlay(h.split(',').map(card), card(up), R, av, tc).action;
 for (const [h, up, tc, R, av, exp] of [
   ['T,6', 'T', -1, S17, all, 'hit'], ['T,6', 'T', 0, S17, all, 'stand'], ['9,7', 'T', 3, S17, all, 'stand'],
@@ -90,8 +92,15 @@ for (const [h, up, tc, R, av, exp] of [
   // Pairs that aren't split play as their total, so they take that total's index plays.
   ['5,5', 'T', 3, S17, all, 'hit'], ['5,5', 'T', 4, S17, all, 'double'], ['5,5', 'A', 4, S17, all, 'double'],
   ['6,6', '2', 2, { ...S17, das: false }, all, 'hit'], ['6,6', '2', 3, { ...S17, das: false }, all, 'stand'],
-  ['7,7', 'T', 3, LS, { ...all, surrender: true }, 'surrender'],
+  ['7,7', 'T', 2, LS, { ...all, surrender: true }, 'hit'], ['7,7', 'T', 3, LS, { ...all, surrender: true }, 'surrender'],
   ['8,8', '9', 6, S17, all, 'split'], ['6,6', '4', 9, S17, all, 'split'], ['9,9', 'T', 9, S17, all, 'stand'],
+  // H17 indexes that differ from S17.
+  ['T,2', '6', -2, S17, all, 'hit'], ['T,2', '6', -1, S17, all, 'stand'],
+  ['T,2', '6', -4, H, all, 'hit'], ['T,2', '6', -3, H, all, 'stand'],
+  ['6,5', 'A', -1, H, all, 'hit'], ['6,5', 'A', 0, H, all, 'double'],
+  ['T,5', 'A', 0, LS, { ...all, surrender: true }, 'hit'], ['T,5', 'A', 1, LS, { ...all, surrender: true }, 'surrender'],
+  ['T,5', 'A', -2, HLS, { ...all, surrender: true }, 'hit'], ['T,5', 'A', -1, HLS, { ...all, surrender: true }, 'surrender'],
+  ['6,4', 'A', 2, H, all, 'hit'], ['6,4', 'A', 3, H, all, 'double'],
 ]) eq(cp(h, up, tc, R, av), exp, `index ${h} vs ${up} at TC ${tc}`);
 console.log(fails ? `${fails}/${n} checks failed` : `all ${n} checks passed`);
 process.exit(fails ? 1 : 0);

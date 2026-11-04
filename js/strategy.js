@@ -122,7 +122,7 @@ const Strategy = (() => {
       { t: 10, u: 10, idx: 4, act: 'double' },
       { t: 12, u: 3, idx: 2, act: 'stand' },
       { t: 12, u: 2, idx: 3, act: 'stand' },
-      ...(R.h17 ? [] : [{ t: 11, u: 11, idx: 1, act: 'double' }]),
+      R.h17 ? { t: 11, u: 11, idx: 0, act: 'hit', below: true } : { t: 11, u: 11, idx: 1, act: 'double' },
       { t: 9, u: 2, idx: 1, act: 'double' },
       { t: 10, u: 11, idx: R.h17 ? 3 : 4, act: 'double' },
       { t: 9, u: 7, idx: 3, act: 'double' },
@@ -130,12 +130,12 @@ const Strategy = (() => {
       { t: 13, u: 2, idx: -1, act: 'hit', below: true },
       { t: 12, u: 4, idx: 0, act: 'hit', below: true },
       { t: 12, u: 5, idx: -2, act: 'hit', below: true },
-      { t: 12, u: 6, idx: -1, act: 'hit', below: true },
+      { t: 12, u: 6, idx: R.h17 ? -3 : -1, act: 'hit', below: true },
       { t: 13, u: 3, idx: -2, act: 'hit', below: true },
       { t: 14, u: 10, idx: 3, act: 'surrender', sur: true },
       { t: 15, u: 10, idx: 0, act: 'hit', below: true, sur: true },
       { t: 15, u: 9, idx: 2, act: 'surrender', sur: true },
-      ...(R.h17 ? [] : [{ t: 15, u: 11, idx: 1, act: 'surrender', sur: true }]),
+      R.h17 ? { t: 15, u: 11, idx: -1, act: 'hit', below: true, sur: true } : { t: 15, u: 11, idx: 1, act: 'surrender', sur: true },
     ];
   }
 
