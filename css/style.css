@@ -242,8 +242,6 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 .actions button:hover:not(:disabled) { background: var(--btn-hover); }
 .actions button:active:not(:disabled), .next:active:not(:disabled) { transform: scale(0.98); }
 .actions button:disabled { opacity: 0.32; cursor: default; }
-.actions button.right { opacity: 1; border-color: var(--green); background: rgba(79, 196, 139, 0.14); color: #c9f1dc; }
-.actions button.wrong { opacity: 1; border-color: var(--red); background: rgba(236, 106, 88, 0.12); color: #f7c7bf; }
 .actions button.nope { animation: nope 0.25s; }
 @keyframes nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .bar-row { display: flex; gap: 8px; width: 100%; max-width: 680px; }

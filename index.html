@@ -14,7 +14,6 @@
 <header class="top">
   <div class="brand"><span class="logo">21</span><span>Blackjack Trainer</span></div>
   <div class="seg" id="mode" role="group" aria-label="Mode">
-    <button data-mode="drill" title="Drill: random decisions, graded instantly (T)">Drill</button>
     <button data-mode="play" title="Play: full hands from a 6-deck shoe (T)">Play</button>
     <button data-mode="count" title="Count: play a shoe while counting, betting and using index plays (T)">Count</button>
   </div>
@@ -125,7 +124,6 @@
     <p class="hint">Dealer soft 17, double after split and surrender can be changed in Settings. The chart and grading follow them.</p>
     <h3>Modes</h3>
     <ul>
-      <li><b>Drill</b>: random spots, skipping no-brainers (naturals, hard 18+). The dealer has already checked for blackjack.</li>
       <li><b>Play</b>: full hands, flat $10 bets from a $1,000 bankroll.</li>
       <li><b>Count</b>: a full shoe where you count while you play. Bet off the true count, decide on insurance, and use the index plays. Every bet and play is graded, with random count checks and a summary after each shoe. The true count only shows after a mistake, unless you turn on the count in Settings.</li>
       <li><b>Running count drill</b> (under Count): cards flash at your speed, then you enter the count.</li>
@@ -152,12 +150,6 @@
     <button class="icon close" data-close aria-label="Close">&times;</button>
   </div>
   <div class="opt">
-    <div class="opt-label">Drill focus</div>
-    <div class="seg small" id="focus">
-      <button data-focus="all">All</button><button data-focus="hard">Hard</button><button data-focus="soft">Soft</button><button data-focus="pair">Pairs</button>
-    </div>
-  </div>
-  <div class="opt">
     <div class="opt-label">Dealer on soft 17</div>
     <div class="seg small" id="rule-h17">
       <button data-v="0">Stands</button><button data-v="1">Hits</button>
@@ -179,7 +171,7 @@
     <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Bet $10–$80 (Game)</dd>
     <dt><kbd>Y</kbd> <kbd>N</kbd></dt><dd>Insurance yes / no (Game)</dd>
     <dt><kbd>0</kbd>–<kbd>9</kbd> <kbd>−</kbd></dt><dd>Type a count (<kbd>↑</kbd> <kbd>↓</kbd> to step)</dd>
-    <dt><kbd>T</kbd></dt><dd>Switch drill / play / count</dd>
+    <dt><kbd>T</kbd></dt><dd>Switch play / count</dd>
     <dt><kbd>C</kbd></dt><dd>Strategy chart</dd>
     <dt><kbd>A</kbd></dt><dd>About and rules</dd>
     <dt><kbd>M</kbd></dt><dd>Mute</dd>

@@ -5,7 +5,7 @@
   const DECKS = 6;
   const BET = 10, START = 1000; // Play mode: flat $10 bets from a $1,000 bankroll
   const usd = n => (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US');
-  const { value, total, isPair } = Strategy;
+  const { total, isPair } = Strategy;
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem('bj:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -21,16 +21,15 @@
   const tcInts = tc => [...new Set([Math.round(tc), Math.floor(tc), Math.round(+tc.toFixed(1))])];
 
   const st = {
-    mode: store.get('mode', 'drill'),
-    focus: store.get('focus', 'all'),
+    mode: store.get('mode', 'play') === 'count' ? 'count' : 'play', // an old saved 'drill' opens Play
     rules: Object.assign({ h17: false, das: true, surrender: false }, store.get('rules', {})),
     sound: store.get('sound', true),
     stats: Object.assign(freshStats(), store.get('stats', {})),
     misses: store.get('misses', {}),
     bank: store.get('cash', START),
     shoe: [], dealer: [], hands: [], active: 0,
-    phase: 'idle', // idle | decide | answered (drill) | busy | over (play) | bet | insure (game) | running | answer (count)
-    holeHidden: true, last: null, timer: 0,
+    phase: 'idle', // idle | decide | busy | over | bet | insure (game) | running | answer | answered (running count)
+    holeHidden: true, last: null,
     pending: null, // tab change requested while cards were moving
     // Counting: drill settings and stats, the current run / true-count spot, the open count prompt,
     // and every card dealt from the Play shoe.
@@ -84,8 +83,7 @@
 
   // ---------- cards ----------
   let cid = 0;
-  const mk = (r, s) => ({ r, s: s || SUITS[Math.random() * 4 | 0], id: ++cid });
-  const randCard = () => mk(RANKS[Math.random() * 13 | 0]);
+  const mk = (r, s) => ({ r, s, id: ++cid });
   function shuffledShoe() {
     const s = [];
     for (let d = 0; d < DECKS; d++) for (const r of RANKS) for (const su of SUITS) s.push(mk(r, su));
@@ -99,29 +97,6 @@
   const mkHand = (cards, bet = 1) => ({ cards, bet, done: false, split: false, splitAces: false, surrendered: false, net: null, res: '' });
   const hand = () => st.hands[st.active];
   const wait = ms => new Promise(r => setTimeout(r, ms));
-
-  // Drill spots: weighted toward real decisions (skips naturals, hard 18+, hard 8-, soft 20+).
-  function genDrill() {
-    const kind = st.focus === 'all' ? ['hard', 'hard', 'soft', 'pair'][Math.random() * 4 | 0] : st.focus;
-    for (;;) {
-      let cards;
-      if (kind === 'pair') {
-        const v = 2 + (Math.random() * 10 | 0);
-        const r = () => (v === 11 ? 'A' : v === 10 ? 'TJQK'[Math.random() * 4 | 0] : String(v));
-        cards = [mk(r()), mk(r())];
-      } else {
-        cards = [randCard(), randCard()];
-        if (Math.random() < 0.2) cards.push(randCard());
-      }
-      const t = total(cards), up = randCard();
-      if (kind === 'hard') {
-        if (cards.some(c => c.r === 'A') || isPair(cards) || t.total < 9 || t.total > 17) continue;
-        if (t.total === 17 && Strategy.code('hard', 17, value(up.r), st.rules) === 'S') continue;
-      }
-      if (kind === 'soft' && (!t.soft || isPair(cards) || t.total < 13 || t.total > 19)) continue;
-      return { cards, up };
-    }
-  }
 
   function avail(h) {
     const two = h.cards.length === 2;
@@ -166,17 +141,8 @@
   }
 
   async function dealRound(units, keepFeedback) {
-    clearTimeout(st.timer);
     st.last = null; st.holeHidden = true; st.active = 0; st.ins = 0;
     if (!keepFeedback) setFeedback('');
-    if (st.mode === 'drill') {
-      const { cards, up } = genDrill();
-      st.hands = [mkHand(cards)];
-      st.dealer = [up, randCard()];
-      st.phase = 'decide';
-      render();
-      return;
-    }
     st.phase = 'busy';
     if (!inGame() && shoeLow()) {
       newShoe(); setFeedback('<span class="muted">Shuffling a fresh shoe · count resets to 0</span>');
@@ -239,12 +205,6 @@
     st.last = { ...d, chosen: a, ok };
     showGrade();
     Sound.play(ok ? 'right' : 'wrong');
-
-    if (st.mode === 'drill') {
-      st.phase = 'answered'; render();
-      if (ok) st.timer = setTimeout(deal, 750);
-      return;
-    }
 
     st.phase = 'busy'; render();
     if (a === 'hit') {
@@ -525,13 +485,10 @@
 
     const deciding = st.phase === 'decide';
     const av = deciding ? avail(hand()) : {};
-    const graded = st.phase === 'answered' ? st.last : null;
     document.querySelectorAll('#actions button').forEach(b => {
       const a = b.dataset.a;
       b.hidden = a === 'surrender' && !st.rules.surrender;
       b.disabled = !deciding || !(a === 'hit' || a === 'stand' || av[a]);
-      b.classList.toggle('right', !!graded && graded.action === a);
-      b.classList.toggle('wrong', !!graded && !graded.ok && graded.chosen === a);
     });
     const betting = st.phase === 'bet' && !st.cin, insuring = st.phase === 'insure' && !st.cin;
     $('#bet-row').hidden = !betting;
@@ -542,7 +499,7 @@
     next.firstChild.textContent = inGame() ? (st.phase === 'bet' ? 'Place a bet' : 'Next hand')
       : st.mode === 'count'
       ? (st.phase === 'running' ? 'Counting…' : st.phase === 'idle' ? 'Start' : 'Next run')
-      : st.phase === 'idle' ? 'Deal' : st.mode === 'drill' ? 'Next hand' : 'Deal again';
+      : st.phase === 'idle' ? 'Deal' : 'Deal again';
     cin.hidden = !st.cin;
     $('#count-cancel').hidden = st.cin?.kind !== 'play';
     if (st.cin) {
@@ -643,7 +600,6 @@
   }
 
   function syncSettings() {
-    document.querySelectorAll('#focus button').forEach(b => b.classList.toggle('on', b.dataset.focus === st.focus));
     document.querySelectorAll('#rule-h17 button').forEach(b => b.classList.toggle('on', b.dataset.v === (st.rules.h17 ? '1' : '0')));
     $('#rule-das').checked = st.rules.das;
     $('#rule-surrender').checked = st.rules.surrender;
@@ -665,7 +621,7 @@
     if (on) Sound.play('right');
   }
 
-  // Drill, Play and Game each keep their own table, so changing tabs never abandons a hand or a shoe.
+  // Play and Game each keep their own table, so changing tabs never abandons a hand or a shoe.
   const tables = {};
   const TABLE = ['shoe', 'dealt', 'gshoe', 'dealer', 'hands', 'active', 'phase', 'holeHidden', 'last', 'ins', 'cin'];
 
@@ -675,7 +631,6 @@
       return render();
     }
     if (mode === st.mode && type === st.cnt.type) return;
-    clearTimeout(st.timer);
     st.runId++; st.run = null;
     const id = () => (inGame() ? 'game' : st.mode); // 'count' here means the running count drill
     if (id() !== 'count') tables[id()] = { ...Object.fromEntries(TABLE.map(k => [k, st[k]])), feedback: $('#feedback').innerHTML };
@@ -692,7 +647,7 @@
     if (shoeMode()) newShoe();
     if (id() === 'count') render(); else deal();
   }
-  const MODES = ['drill', 'play', 'count'];
+  const MODES = ['play', 'count'];
 
   $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTo(b.dataset.mode); });
   $('#actions').addEventListener('click', e => { const b = e.target.closest('button'); if (b) act(b.dataset.a); });
@@ -721,10 +676,6 @@
   $('#btn-sound').addEventListener('click', () => setSound(!st.sound));
   $('#scrim').addEventListener('click', closePanels);
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closePanels));
-  $('#focus').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    st.focus = b.dataset.focus; store.set('focus', st.focus); syncSettings();
-  });
   $('#rule-h17').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setRules({ h17: b.dataset.v === '1' }); });
   $('#rule-das').addEventListener('change', e => setRules({ das: e.target.checked }));
   $('#rule-surrender').addEventListener('change', e => setRules({ surrender: e.target.checked }));
