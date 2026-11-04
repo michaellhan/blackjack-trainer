@@ -14,7 +14,7 @@
 <header class="top">
   <div class="brand"><span class="logo">21</span><span>Blackjack Trainer</span></div>
   <div class="seg" id="mode" role="group" aria-label="Mode">
-    <button data-mode="play" title="Play: full hands from a 6-deck shoe (T)">Play</button>
+    <button data-mode="play" id="btn-play" title="Play: full hands from a 6-deck shoe (T)">Play</button>
     <button data-mode="count" title="Count: play a shoe while counting, betting and using index plays (T)">Count</button>
   </div>
   <div class="tools">
@@ -113,7 +113,7 @@
   <div class="about">
     <h3>Rules</h3>
     <ul>
-      <li>6 decks, reshuffled after 75% of the shoe</li>
+      <li id="about-shoe">6 decks, reshuffled after 75% of the shoe</li>
       <li>Blackjack pays <b>3:2</b></li>
       <li>Dealer <b id="about-h17"></b> on soft 17</li>
       <li>Dealer peeks for blackjack with an A or 10 up, so you only ever lose your original bet to it</li>
@@ -121,7 +121,7 @@
       <li>Split up to 4 hands; split aces get one card each; 21 after a split isn't blackjack</li>
       <li>Late surrender <b id="about-surrender"></b></li>
     </ul>
-    <p class="hint">Dealer soft 17, double after split and surrender can be changed in Settings. The chart and grading follow them.</p>
+    <p class="hint">Decks, dealer soft 17, double after split and surrender can be changed in Settings. The chart and grading follow them.</p>
     <h3>Modes</h3>
     <ul>
       <li><b>Play</b>: full hands, flat $10 bets from a $1,000 bankroll.</li>
@@ -133,7 +133,7 @@
       <li>Hi-Lo: 2–6 are <b>+1</b>, 7–9 are <b>0</b>, 10s and aces are <b>−1</b>.</li>
       <li>True count = running count ÷ decks left. Rounding or flooring are both accepted.</li>
       <li>Game bets: <b>$10</b> up to TC +1, then <b>$20 / $40 / $60 / $80</b> at +2 / +3 / +4 / +5 and up.</li>
-      <li>Game plays use basic strategy plus the Illustrious 18 and Fab 4 index plays (insurance at TC +3). They're listed in the chart (C).</li>
+      <li>Game plays use basic strategy plus the Illustrious 18 and Fab 4 index plays (insurance at TC +3, or +2 with 2 decks). They're listed in the chart (C) for the current rules. With 2 decks the index numbers are simulated rather than published ones.</li>
       <li>Press <b>K</b> in Play or Game to check your count of every card seen this shoe (the hole card counts once it's flipped). The count resets with each new shoe.</li>
     </ul>
     <h3>Grading</h3>
@@ -146,8 +146,14 @@
 
 <aside class="drawer" id="settings" aria-hidden="true">
   <div class="drawer-head">
-    <div><h2>Settings</h2><div class="sub">6 decks · dealer peeks · 3:2 blackjack</div></div>
+    <div><h2>Settings</h2><div class="sub" id="settings-sub">6 decks · dealer peeks · 3:2 blackjack</div></div>
     <button class="icon close" data-close aria-label="Close">&times;</button>
+  </div>
+  <div class="opt">
+    <div class="opt-label">Decks</div>
+    <div class="seg small" id="rule-decks">
+      <button data-v="2">2</button><button data-v="6">6</button>
+    </div>
   </div>
   <div class="opt">
     <div class="opt-label">Dealer on soft 17</div>

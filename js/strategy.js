@@ -1,5 +1,6 @@
-// Basic strategy for multi-deck (4–8 decks) blackjack, dealer peeks for blackjack.
-// Rules: h17 (dealer hits soft 17), das (double after split), surrender (late surrender).
+// Basic strategy for 6-deck (same chart for 4–8) and 2-deck blackjack, dealer peeks for blackjack.
+// Rules: decks (6 by default, or 2), h17 (dealer hits soft 17), das (double after split),
+// surrender (late surrender).
 // Chart codes: H hit, S stand, Dh double else hit, Ds double else stand, P split,
 // Rh / Rs / Rp surrender else hit / stand / split.
 const Strategy = (() => {
@@ -16,16 +17,18 @@ const Strategy = (() => {
 
   const isPair = cards => cards.length === 2 && value(cards[0].r) === value(cards[1].r);
 
+  const dd = R => R.decks === 2;
+
   function hardCode(t, u, R) {
     if (R.surrender) {
-      if (t === 16 && u >= 9) return 'Rh';
+      if (t === 16 && u >= (dd(R) ? 10 : 9)) return 'Rh';
       if (t === 15 && (u === 10 || (R.h17 && u === 11))) return 'Rh';
       if (t === 17 && R.h17 && u === 11) return 'Rs';
     }
     if (t <= 8) return 'H';
-    if (t === 9) return u >= 3 && u <= 6 ? 'Dh' : 'H';
+    if (t === 9) return u >= (dd(R) ? 2 : 3) && u <= 6 ? 'Dh' : 'H';
     if (t === 10) return u <= 9 ? 'Dh' : 'H';
-    if (t === 11) return u <= 10 || R.h17 ? 'Dh' : 'H';
+    if (t === 11) return u <= 10 || R.h17 || dd(R) ? 'Dh' : 'H';
     if (t === 12) return u >= 4 && u <= 6 ? 'S' : 'H';
     if (t <= 16) return u <= 6 ? 'S' : 'H';
     return 'S';
@@ -33,6 +36,7 @@ const Strategy = (() => {
 
   function softCode(t, u, R) {
     if (t <= 12) return 'H'; // A,A that can't be split
+    if (t === 14 && u === 4 && R.h17 && dd(R)) return 'Dh';
     if (t <= 14) return u === 5 || u === 6 ? 'Dh' : 'H';
     if (t <= 16) return u >= 4 && u <= 6 ? 'Dh' : 'H';
     if (t === 17) return u >= 3 && u <= 6 ? 'Dh' : 'H';
@@ -51,9 +55,9 @@ const Strategy = (() => {
       case 11: return 'P';
       case 10: return null;
       case 9: return u === 7 || u >= 10 ? null : 'P';
-      case 8: return R.h17 && R.surrender && u === 11 ? 'Rp' : 'P';
-      case 7: return u <= 7 ? 'P' : null;
-      case 6: return u <= 6 && (R.das || u >= 3) ? 'P' : null;
+      case 8: return R.h17 && R.surrender && u === 11 && !(dd(R) && R.das) ? 'Rp' : 'P';
+      case 7: return u <= 7 || (dd(R) && R.das && u === 8) ? 'P' : null;
+      case 6: return dd(R) ? (u <= 6 || (R.das && u === 7) ? 'P' : null) : u <= 6 && (R.das || u >= 3) ? 'P' : null;
       case 5: return null;
       case 4: return R.das && (u === 5 || u === 6) ? 'P' : null;
       default: return u <= 7 && (R.das || u >= 4) ? 'P' : null; // 2s, 3s
@@ -112,8 +116,9 @@ const Strategy = (() => {
 
   // Hi-Lo index plays for multi-deck: the Illustrious 18 (insurance is separate) and the Fab 4
   // surrenders. Take `act` when the true count is at or above `idx` (below it, for `below`).
-  const INSURANCE = 3;
+  const insurance = R => (dd(R) ? 2 : 3);
   function deviations(R) {
+    if (dd(R)) return deviations2(R);
     return [
       { t: 16, u: 10, idx: 0, act: 'stand' },
       { t: 15, u: 10, idx: 4, act: 'stand' },
@@ -139,6 +144,37 @@ const Strategy = (() => {
     ];
   }
 
+  // 2-deck indexes, simulated: for random shoe states, the exact EV gap between the two plays is
+  // averaged by visible true count, and each index is where the gap changes sign. The same method
+  // lands within about 0.6 of the published 6-deck numbers. Where the chart already doubles (9 v 2,
+  // 11 v A) the index is when to hit instead.
+  function deviations2(R) {
+    const h = R.h17;
+    return [
+      { t: 16, u: 10, idx: 1, act: 'stand' },
+      { t: 15, u: 10, idx: 3, act: 'stand' },
+      { pair: 10, u: 5, idx: 5, act: 'split' },
+      { pair: 10, u: 6, idx: 4, act: 'split' },
+      { t: 10, u: 10, idx: 3, act: 'double' },
+      { t: 12, u: 3, idx: 2, act: 'stand' },
+      { t: 12, u: 2, idx: 4, act: 'stand' },
+      { t: 11, u: 11, idx: h ? -2 : 0, act: 'hit', below: true },
+      { t: 9, u: 2, idx: 1, act: 'hit', below: true },
+      { t: 10, u: 11, idx: h ? 2 : 3, act: 'double' },
+      { t: 9, u: 7, idx: 3, act: 'double' },
+      { t: 16, u: 9, idx: 6, act: 'stand' },
+      { t: 13, u: 2, idx: h ? -1 : 0, act: 'hit', below: true },
+      { t: 12, u: 4, idx: h ? 0 : 1, act: 'hit', below: true },
+      { t: 12, u: 5, idx: -1, act: 'hit', below: true },
+      { t: 12, u: 6, idx: h ? -3 : 0, act: 'hit', below: true },
+      { t: 13, u: 3, idx: -2, act: 'hit', below: true },
+      { t: 14, u: 10, idx: 3, act: 'surrender', sur: true },
+      { t: 15, u: 10, idx: 0, act: 'hit', below: true, sur: true },
+      { t: 15, u: 9, idx: 2, act: 'surrender', sur: true },
+      h ? { t: 15, u: 11, idx: -2, act: 'hit', below: true, sur: true } : { t: 15, u: 11, idx: 1, act: 'surrender', sur: true },
+    ];
+  }
+
   // Like decide(), but at true count `tc`. `dev` is the index play for this spot, if any.
   function countPlay(cards, up, R, avail, tc) {
     const base = { ...decide(cards, up, R, avail), dev: null };
@@ -151,13 +187,13 @@ const Strategy = (() => {
     if (sur && hit(sur)) return { ...base, action: sur.act, dev: sur };
     if (base.action === 'surrender') return { ...base, dev: sur };
     for (const d of list) {
-      if (d.sur || (d.act === 'double' && !avail.double)) continue;
+      if (d.sur || (!avail.double && (d.act === 'double' || base.code[0] === 'D'))) continue;
       return hit(d) ? { ...base, action: d.act, dev: d } : { ...base, dev: d };
     }
     return { ...base, dev: sur };
   }
 
-  return { UPS, value, total, isPair, classify, code, resolve, decide, NAMES, upLabel, INSURANCE, deviations, countPlay };
+  return { UPS, value, total, isPair, classify, code, resolve, decide, NAMES, upLabel, insurance, deviations, countPlay };
 })();
 
 if (typeof module !== 'undefined') module.exports = Strategy;

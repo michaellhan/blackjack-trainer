@@ -59,6 +59,40 @@ check({ h17: false, das: false, surrender: true }, 'S17 noDAS LS', [
   ['T,6', 'S S S S S H H Rh Rh Rh'],
   ['8,8', 'P P P P P P P P P P'],
 ]);
+// 2 decks, from the Wizard of Odds double-deck charts.
+const DD = { ...S17, decks: 2 };
+check(DD, '2D S17 DAS', [
+  ['4,5', 'Dh Dh Dh Dh Dh H H H H H'],
+  ['5,6', 'Dh Dh Dh Dh Dh Dh Dh Dh Dh Dh'],
+  ['T,2', 'H H S S S H H H H H'],
+  ['A,3', 'H H H Dh Dh H H H H H'],
+  ['A,6', 'H Dh Dh Dh Dh H H H H H'],
+  ['A,7', 'S Ds Ds Ds Ds S S H H H'],
+  ['2,2', 'P P P P P P H H H H'],
+  ['4,4', 'H H H P P H H H H H'],
+  ['6,6', 'P P P P P P H H H H'],
+  ['7,7', 'P P P P P P P H H H'],
+  ['8,8', 'P P P P P P P P P P'],
+  ['9,9', 'P P P P P S P P S S'],
+]);
+check({ ...DD, das: false, surrender: true }, '2D S17 noDAS LS', [
+  ['T,5', 'S S S S S H H H Rh H'],
+  ['T,6', 'S S S S S H H H Rh Rh'],
+  ['2,2', 'H H P P P P H H H H'],
+  ['6,6', 'P P P P P H H H H H'],
+  ['7,7', 'P P P P P P H H H H'],
+]);
+check({ ...DD, h17: true, surrender: true }, '2D H17 DAS LS', [
+  ['T,5', 'S S S S S H H H Rh Rh'],
+  ['T,6', 'S S S S S H H H Rh Rh'],
+  ['T,7', 'S S S S S S S S S Rs'],
+  ['A,3', 'H H Dh Dh Dh H H H H H'],
+  ['A,6', 'H Dh Dh Dh Dh H H H H H'],
+  ['A,7', 'Ds Ds Ds Ds Ds S S H H H'],
+  ['A,8', 'S S S S Ds S S S S S'],
+  ['8,8', 'P P P P P P P P P P'],
+]);
+check({ ...DD, h17: true, das: false, surrender: true }, '2D H17 noDAS LS', [['8,8', 'P P P P P P P P P Rp']]);
 // Fallbacks when the table doesn't allow double / surrender.
 const d = (cards, up, R, avail) => S.decide(cards.split(',').map(card), card(up), R, avail).action;
 const no = { double: false, split: false, surrender: false };
@@ -101,6 +135,17 @@ for (const [h, up, tc, R, av, exp] of [
   ['T,5', 'A', 0, LS, { ...all, surrender: true }, 'hit'], ['T,5', 'A', 1, LS, { ...all, surrender: true }, 'surrender'],
   ['T,5', 'A', -2, HLS, { ...all, surrender: true }, 'hit'], ['T,5', 'A', -1, HLS, { ...all, surrender: true }, 'surrender'],
   ['6,4', 'A', 2, H, all, 'hit'], ['6,4', 'A', 3, H, all, 'double'],
+  // 2 decks: where the chart doubles, the index says when to hit, and it needs the double to be on offer.
+  ['5,4', '2', 0, DD, all, 'hit'], ['5,4', '2', 1, DD, all, 'double'],
+  ['6,5', 'A', -1, DD, all, 'hit'], ['6,5', 'A', 0, DD, all, 'double'],
+  ['T,5', 'T', 2, DD, all, 'hit'], ['T,5', 'T', 3, DD, all, 'stand'],
+  ['T,6', 'T', 0, DD, all, 'hit'], ['T,6', 'T', 1, DD, all, 'stand'],
+  ['T,2', '4', 0, DD, all, 'hit'], ['T,2', '4', 1, DD, all, 'stand'],
+  ['T,6', '9', 5, DD, all, 'hit'], ['T,6', '9', 6, DD, all, 'stand'],
 ]) eq(cp(h, up, tc, R, av), exp, `index ${h} vs ${up} at TC ${tc}`);
+const pd = (h, up, R, av, tc) => S.countPlay(h.split(',').map(card), card(up), R, av, tc);
+eq(pd('5,4', '2', DD, all, 0).dev?.idx, 1, '2-deck 9 v 2 shows its index');
+eq(pd('2,3,4', '2', DD, no, 0).dev, null, 'no double, no index on a 3-card 9 v 2');
+eq(S.insurance(S17), 3, '6-deck insurance'); eq(S.insurance(DD), 2, '2-deck insurance');
 console.log(fails ? `${fails}/${n} checks failed` : `all ${n} checks passed`);
 process.exit(fails ? 1 : 0);

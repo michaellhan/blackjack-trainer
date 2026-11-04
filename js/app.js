@@ -2,7 +2,7 @@
   const $ = s => document.querySelector(s);
   const SUITS = ['♠', '♥', '♦', '♣'];
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
-  const DECKS = 6;
+  const PENETRATION = { 2: 0.65, 6: 0.75 }; // share of the shoe dealt before a reshuffle
   const BET = 10, START = 1000; // Play mode: flat $10 bets from a $1,000 bankroll
   const usd = n => (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US');
   const { total, isPair } = Strategy;
@@ -22,7 +22,7 @@
 
   const st = {
     mode: store.get('mode', 'play') === 'count' ? 'count' : 'play', // an old saved 'drill' opens Play
-    rules: Object.assign({ h17: false, das: true, surrender: false }, store.get('rules', {})),
+    rules: Object.assign({ decks: 6, h17: false, das: true, surrender: false }, store.get('rules', {})),
     sound: store.get('sound', true),
     stats: Object.assign(freshStats(), store.get('stats', {})),
     misses: store.get('misses', {}),
@@ -86,13 +86,14 @@
   const mk = (r, s) => ({ r, s, id: ++cid });
   function shuffledShoe() {
     const s = [];
-    for (let d = 0; d < DECKS; d++) for (const r of RANKS) for (const su of SUITS) s.push(mk(r, su));
+    for (let d = 0; d < st.rules.decks; d++) for (const r of RANKS) for (const su of SUITS) s.push(mk(r, su));
     for (let i = s.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [s[i], s[j]] = [s[j], s[i]]; }
     return s;
   }
   function newShoe() { st.shoe = shuffledShoe(); st.dealt = []; st.gshoe = freshGame(); }
   function draw() { const c = st.shoe.pop(); st.dealt.push(c); return c; }
-  const shoeLow = () => st.shoe.length < DECKS * 52 * 0.25;
+  const shoeSize = () => st.rules.decks * 52;
+  const shoeLow = () => st.shoe.length < shoeSize() * (1 - PENETRATION[st.rules.decks]);
   const isBJ = cards => cards.length === 2 && total(cards).total === 21;
   const mkHand = (cards, bet = 1) => ({ cards, bet, done: false, split: false, splitAces: false, surrendered: false, net: null, res: '' });
   const hand = () => st.hands[st.active];
@@ -173,12 +174,12 @@
   // Game: insurance (or even money) with an ace up is worth it from a true count of +3.
   function insure(take) {
     if (st.phase !== 'insure' || st.cin) return;
-    const tc = playCount().tc, want = Math.round(tc) >= Strategy.INSURANCE;
-    const ok = tcInts(tc).some(t => take === t >= Strategy.INSURANCE);
+    const tc = playCount().tc, want = Math.round(tc) >= Strategy.insurance(st.rules);
+    const ok = tcInts(tc).some(t => take === t >= Strategy.insurance(st.rules));
     recordGame('plays', ok); recordGame('devs', ok);
     Sound.play(ok ? 'right' : 'wrong');
     const name = t => (t ? 'Insurance' : 'No insurance');
-    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${name(take)}</span>${ok ? '' : `<span class="spot"><b>${name(want)}</b> · insure at TC ≥ +${Strategy.INSURANCE} · TC ${signed(tc, 1)}</span>`}`);
+    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${name(take)}</span>${ok ? '' : `<span class="spot"><b>${name(want)}</b> · insure at TC ≥ +${Strategy.insurance(st.rules)} · TC ${signed(tc, 1)}</span>`}`);
     st.ins = take ? st.hands[0].bet / 2 : 0;
     st.phase = 'busy'; render();
     afterPeek();
@@ -518,7 +519,7 @@
   }
 
   const pc = ([ok, n]) => (n ? Math.round(100 * ok / n) + '%' : '—');
-  const shoeLeft = () => Math.round(100 * st.shoe.length / (DECKS * 52)) + '%';
+  const shoeLeft = () => Math.round(100 * st.shoe.length / shoeSize()) + '%';
 
   function renderStats() {
     const count = st.showCount && shoeMode() ? playCount() : null;
@@ -553,7 +554,7 @@
 
   function renderChart() {
     const R = st.rules;
-    $('#chart-rules').textContent = `${DECKS} decks · ${R.h17 ? 'H17' : 'S17'} · ${R.das ? 'DAS' : 'no DAS'}${R.surrender ? ' · late surrender' : ''}`;
+    $('#chart-rules').textContent = `${R.decks} decks · ${R.h17 ? 'H17' : 'S17'} · ${R.das ? 'DAS' : 'no DAS'}${R.surrender ? ' · late surrender' : ''}`;
     $('#legend-r').hidden = $('#legend-r-note').hidden = !R.surrender;
     const L = st.last, lastKey = L ? cellKey(L.kind, L.key, L.up) : '';
     let html = '';
@@ -574,7 +575,7 @@
     }
     const N = Strategy.NAMES;
     html += `<h3>Count index plays<span>Hi-Lo, true count</span></h3><table class="list">`;
-    html += `<tr><td>Insurance</td><td>A</td><td>Take at TC ≥ +${Strategy.INSURANCE}</td></tr>`;
+    html += `<tr><td>Insurance</td><td>A</td><td>Take at TC ≥ +${Strategy.insurance(st.rules)}</td></tr>`;
     for (const d of Strategy.deviations(R)) {
       if (d.sur && !R.surrender) continue;
       html += `<tr><td>${d.pair ? 'T,T' : 'Hard ' + d.t}</td><td>${Strategy.upLabel(d.u)}</td><td>${N[d.act]} at TC ${d.below ? '<' : '≥'} ${signed(d.idx)}</td></tr>`;
@@ -600,11 +601,16 @@
   }
 
   function syncSettings() {
+    document.querySelectorAll('#rule-decks button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === st.rules.decks));
     document.querySelectorAll('#rule-h17 button').forEach(b => b.classList.toggle('on', b.dataset.v === (st.rules.h17 ? '1' : '0')));
     $('#rule-das').checked = st.rules.das;
     $('#rule-surrender').checked = st.rules.surrender;
     $('#opt-sound').checked = st.sound;
     $('#opt-showcount').checked = st.showCount;
+    const decks = st.rules.decks;
+    $('#settings-sub').textContent = `${decks} decks · dealer peeks · 3:2 blackjack`;
+    $('#about-shoe').textContent = `${decks} decks, reshuffled after ${Math.round(100 * PENETRATION[decks])}% of the shoe`;
+    $('#btn-play').title = `Play: full hands from a ${decks}-deck shoe (T)`;
     $('#about-h17').textContent = st.rules.h17 ? 'hits' : 'stands';
     $('#about-das').textContent = st.rules.das ? 'allowed' : 'not allowed';
     $('#about-surrender').textContent = st.rules.surrender ? 'allowed' : 'off';
@@ -647,6 +653,19 @@
     if (shoeMode()) newShoe();
     if (id() === 'count') render(); else deal();
   }
+
+  // A new deck count needs a new shoe, so saved Play and Game tables go and any hand in progress is dropped.
+  function setDecks(n) {
+    if (n === st.rules.decks || st.phase === 'busy') return;
+    st.rules.decks = n;
+    delete tables.play; delete tables.game;
+    if (shoeMode()) {
+      Object.assign(st, { dealer: [], hands: [], active: 0, phase: 'idle', last: null, ins: 0, cin: null });
+      setFeedback(''); newShoe();
+    }
+    setRules({});
+    if (shoeMode()) deal();
+  }
   const MODES = ['play', 'count'];
 
   $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTo(b.dataset.mode); });
@@ -676,6 +695,7 @@
   $('#btn-sound').addEventListener('click', () => setSound(!st.sound));
   $('#scrim').addEventListener('click', closePanels);
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closePanels));
+  $('#rule-decks').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setDecks(Number(b.dataset.v)); });
   $('#rule-h17').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setRules({ h17: b.dataset.v === '1' }); });
   $('#rule-das').addEventListener('change', e => setRules({ das: e.target.checked }));
   $('#rule-surrender').addEventListener('change', e => setRules({ surrender: e.target.checked }));
