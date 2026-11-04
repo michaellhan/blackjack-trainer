@@ -157,7 +157,6 @@ body.muted .icon .off { display: inline; }
 .hand { display: flex; flex-direction: column; align-items: center; gap: 10px; transition: opacity 0.2s; }
 .hands:has(.active) .hand:not(.active) { opacity: 0.45; }
 .hand.active .total { box-shadow: 0 0 0 1.5px var(--gold); }
-.hand .label { order: 2; }
 .chip {
   font: 600 11px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0;
   color: var(--gold); border: 1.5px solid currentColor; border-radius: 99px; padding: 3px 6px;
@@ -166,6 +165,11 @@ body.muted .icon .off { display: inline; }
 .won .res { color: var(--green); }
 .lost .res { color: var(--red); }
 .pushed .res { color: var(--text); }
+
+/* every large control in the bar */
+.actions button, .choice button, .next, .count-check, .count-input button, .count-input output {
+  height: 52px; border-radius: 11px; border: 1px solid var(--line); background: var(--btn); font-weight: 600;
+}
 
 /* ---------- count mode ---------- */
 body:not([data-mode="count"]) .count-view,
@@ -207,23 +211,17 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 .feedback .prompt { font-weight: 600; color: var(--gold); }
 
 .choice { display: flex; gap: 8px; width: 100%; max-width: 680px; }
-.choice button {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-  height: 52px; border-radius: 11px; border: 1px solid var(--line); background: var(--btn);
-  font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums;
-}
+.choice button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-variant-numeric: tabular-nums; }
 .choice button:hover { background: var(--btn-hover); }
 #bet-row button { border-color: rgba(232, 199, 102, 0.35); color: #f3dc94; }
 #chart-body table.list { table-layout: auto; }
 #chart-body table.list td { text-align: left; padding: 0 10px; background: rgba(255, 255, 255, 0.04); font-weight: 500; font-size: 12.5px; }
 #chart-body table.list td:nth-child(2) { width: 34px; text-align: center; color: var(--muted); }
 .count-input { display: flex; gap: 8px; width: 100%; max-width: 680px; }
-.count-input button, .count-input output {
-  height: 52px; border-radius: 11px; border: 1px solid var(--line); background: var(--btn);
-  display: grid; place-items: center; font-weight: 600;
-}
+.count-input button, .count-input output { display: grid; place-items: center; }
 .count-input [data-step] { width: 64px; font-size: 22px; }
-.count-input [data-step]:hover { background: var(--btn-hover); }
+.count-input #count-cancel { width: 44px; font-size: 20px; color: var(--muted); }
+.count-input [data-step]:hover, .count-input #count-cancel:hover { background: var(--btn-hover); }
 .count-input output { flex: 1; font-size: 26px; font-variant-numeric: tabular-nums; }
 .count-input output.empty { color: var(--muted); }
 .count-input .submit { display: flex; gap: 8px; padding: 0 22px; background: rgba(255, 255, 255, 0.92); color: #111; border: 0; }
@@ -238,12 +236,10 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 .actions button, .next {
   flex: 1;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  height: 52px; border-radius: 11px;
-  border: 1px solid var(--line); background: var(--btn);
-  font-weight: 600; font-size: 15px;
+  font-size: 15px;
   transition: background 0.12s, border-color 0.12s, opacity 0.12s, transform 0.06s;
 }
-.actions button:hover:not(:disabled), .next:hover:not(:disabled) { background: var(--btn-hover); }
+.actions button:hover:not(:disabled) { background: var(--btn-hover); }
 .actions button:active:not(:disabled), .next:active:not(:disabled) { transform: scale(0.98); }
 .actions button:disabled { opacity: 0.32; cursor: default; }
 .actions button.right { opacity: 1; border-color: var(--green); background: rgba(79, 196, 139, 0.14); color: #c9f1dc; }
@@ -252,10 +248,7 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 @keyframes nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .bar-row { display: flex; gap: 8px; width: 100%; max-width: 680px; }
 .next { background: rgba(255, 255, 255, 0.92); color: #111; border: 0; }
-.count-check {
-  display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 18px;
-  border-radius: 11px; border: 1px solid var(--line); background: var(--btn); font-weight: 600;
-}
+.count-check { display: flex; align-items: center; gap: 8px; padding: 0 18px; }
 .count-check:hover:not(:disabled) { background: var(--btn-hover); }
 .count-check:disabled { opacity: 0.4; cursor: default; }
 .next:hover:not(:disabled) { background: #fff; }
@@ -337,7 +330,6 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 /* ---------- small screens ---------- */
 @media (max-width: 640px) {
   .top { grid-template-columns: 1fr auto; padding: 10px 12px; }
-  .brand span:last-child { display: none; }
   .seg { grid-column: 1; justify-self: start; }
   .brand { display: none; }
   .stats { gap: 6px 14px; }
@@ -361,8 +353,8 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
   .count-config { gap: 6px; }
   .count-stage .card { width: 84px; height: 118px; }
   .count-stage .card .pip { font-size: 42px; }
-      .count-input [data-step] { width: 56px; }
+  .count-input [data-step] { width: 56px; }
   .count-input .submit { padding: 0 16px; }
 }
-@media (hover: none) { kbd { display: none; } }
+@media (hover: none) { kbd, .keys-title, .keys { display: none; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

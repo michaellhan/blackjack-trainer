@@ -3,6 +3,8 @@
 # michaellhan/michaellhan.github.io repo (folder: blackjack/) and pushing, then pushes this repo.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+# The cache-busting version is the commit, so uncommitted edits would ship under an already-cached URL.
+git -C "$HERE" diff --quiet HEAD || { echo "Commit your changes first; not deploying."; exit 1; }
 node "$HERE/scripts/test-strategy.mjs" >/dev/null || { echo "Strategy tests failed; not deploying."; exit 1; }
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -22,5 +24,4 @@ else
   git push -q origin main
   echo "Deployed. GitHub Pages will update https://www.michael-han.com/blackjack/ in about a minute."
 fi
-if ! git -C "$HERE" diff --quiet HEAD 2>/dev/null; then echo "Note: uncommitted changes were deployed but not pushed."; fi
 git -C "$HERE" push -q && echo "Pushed → $(git -C "$HERE" remote get-url origin)"

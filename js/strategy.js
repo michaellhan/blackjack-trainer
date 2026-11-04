@@ -139,19 +139,20 @@ const Strategy = (() => {
     ];
   }
 
-  // Like decide(), but at true count `tc`. `dev` is the index play for this spot (if any),
-  // `deviated` whether the count moved the play off basic strategy.
+  // Like decide(), but at true count `tc`. `dev` is the index play for this spot, if any.
   function countPlay(cards, up, R, avail, tc) {
-    const base = { ...decide(cards, up, R, avail), dev: null, deviated: false };
-    if (base.kind === 'soft' || (base.kind === 'pair' && base.key !== 10)) return base;
-    const list = deviations(R).filter(d => d.u === base.up && (base.kind === 'pair' ? d.pair === 10 : d.t === base.key));
+    const base = { ...decide(cards, up, R, avail), dev: null };
+    if (base.kind === 'soft' || base.action === 'split') return base;
+    // A pair that isn't split plays as its total; only T,T has indexes of its own.
+    const pair = base.kind === 'pair', t = pair ? base.key * 2 : base.key;
+    const list = deviations(R).filter(d => d.u === base.up && (d.pair ? pair && base.key === d.pair : d.t === t));
     const hit = d => (d.below ? tc < d.idx : tc >= d.idx);
     const sur = avail.surrender ? list.find(d => d.sur) : null;
-    if (sur && hit(sur)) return { ...base, action: sur.act, dev: sur, deviated: true };
+    if (sur && hit(sur)) return { ...base, action: sur.act, dev: sur };
     if (base.action === 'surrender') return { ...base, dev: sur };
     for (const d of list) {
-      if (d.sur || (d.act === 'double' && !avail.double) || (d.act === 'split' && !avail.split)) continue;
-      return hit(d) ? { ...base, action: d.act, dev: d, deviated: true } : { ...base, dev: d };
+      if (d.sur || (d.act === 'double' && !avail.double)) continue;
+      return hit(d) ? { ...base, action: d.act, dev: d } : { ...base, dev: d };
     }
     return { ...base, dev: sur };
   }

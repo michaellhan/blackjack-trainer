@@ -29,8 +29,9 @@
     misses: store.get('misses', {}),
     bank: store.get('cash', START),
     shoe: [], dealer: [], hands: [], active: 0,
-    phase: 'idle', // idle | decide | answered (drill) | busy | over (play) | running | answer (count)
+    phase: 'idle', // idle | decide | answered (drill) | busy | over (play) | bet | insure (game) | running | answer (count)
     holeHidden: true, last: null, timer: 0,
+    pending: null, // tab change requested while cards were moving
     // Counting: drill settings and stats, the current run / true-count spot, the open count prompt,
     // and every card dealt from the Play shoe.
     cnt: Object.assign({ type: 'game', speed: 'medium', len: 20, per: 1 }, store.get('count', {})),
@@ -92,10 +93,8 @@
     return s;
   }
   function newShoe() { st.shoe = shuffledShoe(); st.dealt = []; st.gshoe = freshGame(); }
-  function draw() {
-    if (st.mode === 'drill') return randCard();
-    const c = st.shoe.pop(); st.dealt.push(c); return c;
-  }
+  function draw() { const c = st.shoe.pop(); st.dealt.push(c); return c; }
+  const shoeLow = () => st.shoe.length < DECKS * 52 * 0.25;
   const isBJ = cards => cards.length === 2 && total(cards).total === 21;
   const mkHand = (cards, bet = 1) => ({ cards, bet, done: false, split: false, splitAces: false, surrendered: false, net: null, res: '' });
   const hand = () => st.hands[st.active];
@@ -128,13 +127,13 @@
     const two = h.cards.length === 2;
     return {
       double: two && (!h.split || st.rules.das),
-      split: two && isPair(h.cards) && st.hands.length < 4 && !(h.split && h.cards[0].r === 'A'),
+      split: two && isPair(h.cards) && st.hands.length < 4, // split aces never reach a decision
       surrender: two && st.rules.surrender && !h.split,
     };
   }
 
   // ---------- round flow ----------
-  async function deal() {
+  function deal() {
     if (st.cin) return;
     if (st.mode === 'count' && !inGame()) return startCount();
     if (['busy', 'decide', 'insure', 'bet'].includes(st.phase)) return;
@@ -144,10 +143,9 @@
 
   // Game: clear the table and wait for a bet (sometimes asking for the count first).
   function toBet() {
-    clearTimeout(st.timer);
     st.dealer = []; st.hands = []; st.last = null; st.phase = 'bet';
     let msg = '<span class="prompt">Place your bet</span>';
-    if (st.shoe.length < DECKS * 52 * 0.25) {
+    if (shoeLow()) {
       const g = st.gshoe;
       msg = `<span class="muted">New shoe · last shoe ${g.net > 0 ? '+' : ''}${usd(g.net * BET)} · bets ${g.bets[0]}/${g.bets[1]} · plays ${g.plays[0]}/${g.plays[1]}</span>` + msg;
       newShoe();
@@ -163,7 +161,7 @@
     const ok = tcInts(p.tc).some(t => ramp(t) === u);
     recordGame('bets', ok);
     Sound.play(ok ? 'right' : 'wrong');
-    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} Bet ${usd(u * BET)}</span><span class="spot">TC ${signed(p.tc, 1)}${ok ? '' : ` → bet <b>${usd(want * BET)}</b>`}</span>`);
+    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} Bet ${usd(u * BET)}</span>${ok ? '' : `<span class="spot">TC ${signed(p.tc, 1)} → bet <b>${usd(want * BET)}</b></span>`}`);
     dealRound(u, true);
   }
 
@@ -180,7 +178,7 @@
       return;
     }
     st.phase = 'busy';
-    if (!inGame() && st.shoe.length < DECKS * 52 * 0.25) {
+    if (!inGame() && shoeLow()) {
       newShoe(); setFeedback('<span class="muted">Shuffling a fresh shoe · count resets to 0</span>');
       st.dealer = []; st.hands = []; render(); await wait(500);
     }
@@ -214,7 +212,7 @@
     recordGame('plays', ok); recordGame('devs', ok);
     Sound.play(ok ? 'right' : 'wrong');
     const name = t => (t ? 'Insurance' : 'No insurance');
-    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${name(take)}</span><span class="spot">${ok ? '' : `<b>${name(want)}</b> · `}insure at TC ≥ +${Strategy.INSURANCE} · TC ${signed(tc, 1)}</span>`);
+    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${name(take)}</span>${ok ? '' : `<span class="spot"><b>${name(want)}</b> · insure at TC ≥ +${Strategy.INSURANCE} · TC ${signed(tc, 1)}</span>`}`);
     st.ins = take ? st.hands[0].bet / 2 : 0;
     st.phase = 'busy'; render();
     afterPeek();
@@ -300,7 +298,7 @@
   }
 
   function settle() {
-    if (st.holeHidden) { st.holeHidden = false; }
+    st.holeHidden = false; // a natural or all-bust round ends without the dealer's turn
     const dt = total(st.dealer).total, dbj = isBJ(st.dealer);
     let sum = 0;
     for (const h of st.hands) {
@@ -319,7 +317,7 @@
     if (st.ins) {
       const v = dbj ? 2 * st.ins : -st.ins;
       sum += v;
-      $('#feedback').insertAdjacentHTML('beforeend', `<span class="note">Insurance ${v > 0 ? 'pays +' : 'loses '}${usd(v * BET)}</span>`);
+      $('#feedback').insertAdjacentHTML('beforeend', `<span class="note">Insurance ${v > 0 ? 'pays +' : 'loses '}${usd(Math.abs(v) * BET)}</span>`);
     }
     if (inGame()) { st.gbank += sum * BET; st.gshoe.net += sum; } else st.bank += sum * BET;
     save();
@@ -348,7 +346,7 @@
     const L = st.last, N = Strategy.NAMES;
     const spot = `${L.label} vs ${Strategy.upLabel(L.up)}`;
     const note = L.dev
-      ? `<span class="note">Index play: ${N[L.dev.act].toLowerCase()} at TC ${L.dev.below ? '<' : '≥'} ${signed(L.dev.idx)} · TC now ${signed(L.tc, 1)}</span>`
+      ? `<span class="note">Index play: ${N[L.dev.act].toLowerCase()} at TC ${L.dev.below ? '<' : '≥'} ${signed(L.dev.idx)}${L.ok ? '' : ` · TC now ${signed(L.tc, 1)}`}</span>`
       : L.note && !L.ok ? `<span class="note">${L.note}</span>` : '';
     setFeedback(L.ok
       ? `<span class="ok">✓ ${N[L.chosen]}</span><span class="spot">${spot}</span>${note}`
@@ -363,14 +361,17 @@
   }
 
   // ---------- card counting (Hi-Lo) ----------
+  const red = c => (c.s === '♥' || c.s === '♦' ? ' red' : '');
   const hilo = c => ('23456'.includes(c.r) ? 1 : '789'.includes(c.r) ? 0 : -1);
-  const signed = (n, dp = 0) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(dp);
+  const signed = (n, dp = 0) => {
+    const v = +n.toFixed(dp); // so −0.04 reads 0.0, not −0.0
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(dp);
+  };
   const SPEEDS = { slow: 1000, medium: 700, fast: 450, pro: 300 };
 
   async function startCount() {
     if (st.phase === 'running' || st.cin) return;
-    clearTimeout(st.timer);
-    setFeedback(''); st.run = null;
+    setFeedback('');
     const cards = shuffledShoe().slice(0, st.cnt.len);
     st.run = { cards, shown: 0, rc: cards.reduce((n, c) => n + hilo(c), 0) };
     st.phase = 'running'; render();
@@ -399,7 +400,7 @@
 
   function ask(kind) {
     if (kind !== 'play') st.phase = 'answer';
-    st.cin = { kind, text: '' };
+    st.cin = { kind, text: '', prev: $('#feedback').innerHTML };
     setFeedback('<span class="prompt">Running count?</span>');
     render();
   }
@@ -413,11 +414,15 @@
     else if (key === 'ArrowDown') return step(-1), true;
     else if (key === 'Backspace') c.text = c.text.slice(0, -1);
     else if (key === 'Enter') return submitCount(), true;
-    else if (key === 'Escape' && c.kind === 'play') { st.cin = null; setFeedback(''); render(); return true; }
+    else if (key === 'Escape' && c.kind === 'play') return cancelCount(), true;
     else return false;
     render(); return true;
   }
   function step(d) { st.cin.text = String((parseInt(st.cin.text, 10) || 0) + d); render(); }
+  function cancelCount() {
+    if (st.cin?.kind !== 'play') return;
+    setFeedback(st.cin.prev); st.cin = null; render();
+  }
 
   function submitCount() {
     const c = st.cin; if (!c) return;
@@ -432,14 +437,15 @@
       detail = ok ? `after ${st.run.cards.length} cards` : `The count was <b>${signed(st.run.rc)}</b>`;
     }
     if (inGame()) recordGame('checks', ok);
-    else {
+    else if (c.kind === 'running') {
       const s = st.cstats;
       s.n++;
       if (ok) { s.ok++; s.streak++; s.best = Math.max(s.best, s.streak); } else s.streak = 0;
       save();
     }
     Sound.play(ok ? 'right' : 'wrong');
-    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${signed(ans)}</span><span class="spot">${detail}</span>`);
+    const prompt = { bet: 'Place your bet', insure: 'Insurance?' }[st.phase];
+    setFeedback(`<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${signed(ans)}</span><span class="spot">${detail}</span>${prompt ? `<span class="prompt">${prompt}</span>` : ''}`);
     st.cin = null;
     if (c.kind !== 'play') st.phase = 'answered';
     render();
@@ -451,7 +457,8 @@
     document.querySelectorAll('.seg[data-cfg]').forEach(g => {
       const k = g.dataset.cfg;
       g.hidden = st.cnt.type !== 'running' && k !== 'type';
-      g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(st.cnt[k])));
+      const v = k === 'type' && st.pending ? st.pending[1] : st.cnt[k];
+      g.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
     });
     let html = '';
     if (st.run) {
@@ -465,8 +472,7 @@
         let rc = 0;
         html = `<div class="review">${cards.map(c => {
           const v = hilo(c); rc += v;
-          const red = c.s === '♥' || c.s === '♦' ? ' red' : '';
-          return `<span class="mini ${v > 0 ? 'p' : v < 0 ? 'n' : 'z'}${red}" title="count ${signed(rc)}">${c.r === 'T' ? '10' : c.r}${c.s}<b>${signed(v)}</b></span>`;
+          return `<span class="mini ${v > 0 ? 'p' : v < 0 ? 'n' : 'z'}${red(c)}" title="count ${signed(rc)}">${c.r === 'T' ? '10' : c.r}${c.s}<b>${signed(v)}</b></span>`;
         }).join('')}</div>`;
       }
     } else {
@@ -476,15 +482,15 @@
   }
 
   // ---------- rendering ----------
-  const seen = new Set();
+  // Cards on screen in the last render, so only new cards animate. Hole cards are tracked as 'b'+id.
+  let seen = new Set(), showing = new Set();
   function cardHTML(c, hidden) {
     const id = hidden ? 'b' + c.id : c.id;
     const fresh = seen.has(id) ? '' : seen.has('b' + c.id) ? ' flip' : ' enter';
-    seen.add(id);
+    showing.add(id);
     if (hidden) return `<div class="card back${fresh}"></div>`;
-    const red = c.s === '♥' || c.s === '♦' ? ' red' : '';
     const r = c.r === 'T' ? '10' : c.r;
-    return `<div class="card${red}${fresh}"><span class="idx">${r}<i>${c.s}</i></span><span class="pip">${c.s}</span></div>`;
+    return `<div class="card${red(c)}${fresh}"><span class="idx">${r}<i>${c.s}</i></span><span class="pip">${c.s}</span></div>`;
   }
 
   function totalLabel(cards, natural = true) {
@@ -494,6 +500,11 @@
   }
 
   function render() {
+    if (st.pending && st.phase !== 'busy') {
+      const [mode, type] = st.pending;
+      st.pending = null;
+      return switchTo(mode, type);
+    }
     document.body.dataset.mode = inGame() ? 'game' : st.mode;
     if (st.mode === 'count') renderCount();
     const hideHole = st.holeHidden && st.dealer.length > 1;
@@ -504,7 +515,7 @@
     const multi = st.hands.length > 1;
     $('#hands').innerHTML = st.hands.map((h, i) => {
       const cls = ['hand'];
-      if (multi && i === st.active && st.phase !== 'over') cls.push('active');
+      if (multi && i === st.active) cls.push('active');
       if (h.net != null) cls.push(h.net > 0 ? 'won' : h.net < 0 ? 'lost' : 'pushed');
       const bet = shoeMode() ? `<span class="chip">${usd(h.bet * BET)}</span>` : '';
       const res = h.res ? `<span class="res">${h.res}${h.net ? ` ${h.net > 0 ? '+' : ''}${usd(h.net * BET)}` : ''}</span>` : '';
@@ -533,6 +544,7 @@
       ? (st.phase === 'running' ? 'Counting…' : st.phase === 'idle' ? 'Start' : 'Next run')
       : st.phase === 'idle' ? 'Deal' : st.mode === 'drill' ? 'Next hand' : 'Deal again';
     cin.hidden = !st.cin;
+    $('#count-cancel').hidden = st.cin?.kind !== 'play';
     if (st.cin) {
       $('#count-value').textContent = st.cin.text === '' ? '0' : st.cin.text.replace('-', '−');
       $('#count-value').classList.toggle('empty', st.cin.text === '');
@@ -541,38 +553,35 @@
     $('#count-check').hidden = !shoeMode();
     $('#count-check').disabled = st.phase === 'busy';
 
-    document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
+    const tab = st.pending ? st.pending[0] : st.mode;
+    document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.mode === tab));
+    seen = showing; showing = new Set();
     renderStats();
     if ($('#chart').classList.contains('open')) renderChart();
   }
 
-  function renderStats() {
-    if (inGame()) return renderGameStats();
-    const s = st.mode === 'count' ? st.cstats : st.stats, pct = s.n ? Math.round(100 * s.ok / s.n) + '%' : '—';
-    const items = [
-      ['Accuracy', pct, s.n ? `${s.ok}/${s.n}` : ''],
-      ['Streak', s.streak, ''],
-      ['Best', s.best, ''],
-    ];
-    if (st.mode === 'play') {
-      const b = st.bank, shoe = st.shoe.length ? Math.round(100 * st.shoe.length / (DECKS * 52)) + '%' : '100%';
-      items.push(['Bankroll', usd(b), ''], ['Shoe', shoe, '']);
-      if (st.showCount) { const p = playCount(); items.push(['Count', signed(p.rc), `true ${signed(p.tc, 1)}`]); }
-    }
-    $('#stats').innerHTML = items.map(([k, v, sub]) =>
-      `<div><span class="k">${k}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`).join('');
-  }
+  const pc = ([ok, n]) => (n ? Math.round(100 * ok / n) + '%' : '—');
+  const shoeLeft = () => Math.round(100 * st.shoe.length / (DECKS * 52)) + '%';
 
-  function renderGameStats() {
-    const g = st.gstats, pc = ([ok, n]) => (n ? Math.round(100 * ok / n) + '%' : '—');
-    const items = [
-      ['Bankroll', usd(st.gbank), ''],
-      ['Bets', pc(g.bets), g.bets[1] ? `${g.bets[0]}/${g.bets[1]}` : ''],
-      ['Plays', pc(g.plays), g.devs[1] ? `index ${g.devs[0]}/${g.devs[1]}` : ''],
-      ['Count', pc(g.checks), g.checks[1] ? `${g.checks[0]}/${g.checks[1]}` : ''],
-      ['Shoe', Math.round(100 * st.shoe.length / (DECKS * 52)) + '%', ''],
-    ];
-    if (st.showCount) { const p = playCount(); items.push(['True', signed(p.tc, 1), `RC ${signed(p.rc)}`]); }
+  function renderStats() {
+    const count = st.showCount && shoeMode() ? playCount() : null;
+    let items;
+    if (inGame()) {
+      const g = st.gstats;
+      items = [
+        ['Bankroll', usd(st.gbank)],
+        ['Bets', pc(g.bets), g.bets[1] ? `${g.bets[0]}/${g.bets[1]}` : ''],
+        ['Plays', pc(g.plays), g.devs[1] ? `index ${g.devs[0]}/${g.devs[1]}` : ''],
+        ['Count', pc(g.checks), g.checks[1] ? `${g.checks[0]}/${g.checks[1]}` : ''],
+        ['Shoe', shoeLeft()],
+      ];
+      if (count) items.push(['True', signed(count.tc, 1), `RC ${signed(count.rc)}`]);
+    } else {
+      const s = st.mode === 'count' ? st.cstats : st.stats;
+      items = [['Accuracy', pc([s.ok, s.n]), s.n ? `${s.ok}/${s.n}` : ''], ['Streak', s.streak], ['Best', s.best]];
+      if (st.mode === 'play') items.push(['Bankroll', usd(st.bank)], ['Shoe', shoeLeft()]);
+      if (count) items.push(['Count', signed(count.rc), `true ${signed(count.tc, 1)}`]);
+    }
     $('#stats').innerHTML = items.map(([k, v, sub]) =>
       `<div><span class="k">${k}</span><span class="v">${v}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`).join('');
   }
@@ -588,7 +597,7 @@
   function renderChart() {
     const R = st.rules;
     $('#chart-rules').textContent = `${DECKS} decks · ${R.h17 ? 'H17' : 'S17'} · ${R.das ? 'DAS' : 'no DAS'}${R.surrender ? ' · late surrender' : ''}`;
-    $('#legend-r').hidden = !R.surrender;
+    $('#legend-r').hidden = $('#legend-r-note').hidden = !R.surrender;
     const L = st.last, lastKey = L ? cellKey(L.kind, L.key, L.up) : '';
     let html = '';
     for (const kind of ['hard', 'soft', 'pair']) {
@@ -656,33 +665,52 @@
     if (on) Sound.play('right');
   }
 
-  function setMode(m) {
-    if (m === st.mode || st.phase === 'busy') return;
+  // Drill, Play and Game each keep their own table, so changing tabs never abandons a hand or a shoe.
+  const tables = {};
+  const TABLE = ['shoe', 'dealt', 'gshoe', 'dealer', 'hands', 'active', 'phase', 'holeHidden', 'last', 'ins', 'cin'];
+
+  function switchTo(mode, type = st.cnt.type) {
+    if (st.phase === 'busy') {
+      st.pending = mode === st.mode && type === st.cnt.type ? null : [mode, type];
+      return render();
+    }
+    if (mode === st.mode && type === st.cnt.type) return;
     clearTimeout(st.timer);
-    st.mode = m; store.set('mode', m);
-    st.dealer = []; st.hands = []; st.phase = 'idle'; st.last = null;
-    st.runId++; st.run = st.cin = null;
-    if (m === 'play' || inGame()) newShoe();
+    st.runId++; st.run = null;
+    const id = () => (inGame() ? 'game' : st.mode); // 'count' here means the running count drill
+    if (id() !== 'count') tables[id()] = { ...Object.fromEntries(TABLE.map(k => [k, st[k]])), feedback: $('#feedback').innerHTML };
+    st.mode = mode; st.cnt.type = type;
+    store.set('mode', mode); store.set('count', st.cnt);
+    const saved = tables[id()];
+    if (saved) {
+      const { feedback, ...table } = saved;
+      Object.assign(st, table); setFeedback(feedback);
+      return render();
+    }
+    Object.assign(st, { dealer: [], hands: [], active: 0, phase: 'idle', last: null, ins: 0, cin: null });
     setFeedback('');
-    if (m === 'count' && !inGame()) render(); else deal();
+    if (shoeMode()) newShoe();
+    if (id() === 'count') render(); else deal();
   }
   const MODES = ['drill', 'play', 'count'];
 
-  $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
+  $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchTo(b.dataset.mode); });
   $('#actions').addEventListener('click', e => { const b = e.target.closest('button'); if (b) act(b.dataset.a); });
   $('#next').addEventListener('click', deal);
   $('#count-check').addEventListener('click', checkCount);
   $('#count-submit').addEventListener('click', submitCount);
+  $('#count-cancel').addEventListener('click', cancelCount);
   $('#count-input').addEventListener('click', e => { const b = e.target.closest('[data-step]'); if (b && st.cin) step(Number(b.dataset.step)); });
   document.addEventListener('click', e => {
     const b = e.target.closest('.seg[data-cfg] button');
-    if (!b || st.phase === 'busy') return;
+    if (!b) return;
     const k = b.closest('.seg').dataset.cfg;
-    st.cnt[k] = k === 'len' || k === 'per' ? Number(b.dataset.v) : b.dataset.v;
-    store.set('count', st.cnt);
-    clearTimeout(st.timer); st.runId++; st.run = st.cin = null;
-    st.dealer = []; st.hands = []; st.phase = 'idle'; st.last = null; setFeedback('');
-    if (inGame()) { newShoe(); toBet(); } else render();
+    const v = k === 'len' || k === 'per' ? Number(b.dataset.v) : b.dataset.v;
+    if (k === 'type') return switchTo('count', v);
+    if (v === st.cnt[k]) return;
+    st.cnt[k] = v; store.set('count', st.cnt);
+    st.runId++; st.run = st.cin = null; st.phase = 'idle';
+    setFeedback(''); render();
   });
   $('#bet-row').addEventListener('click', e => { const b = e.target.closest('[data-bet]'); if (b) placeBet(Number(b.dataset.bet)); });
   $('#ins-row').addEventListener('click', e => { const b = e.target.closest('[data-ins]'); if (b) insure(b.dataset.ins === '1'); });
@@ -703,18 +731,21 @@
   $('#opt-sound').addEventListener('change', e => setSound(e.target.checked));
   $('#reset').addEventListener('click', () => {
     if (!confirm('Reset accuracy, streaks, missed spots, counting stats and bankroll?')) return;
-    st.stats = freshStats(); st.cstats = freshCount(); st.gstats = freshGame(); st.misses = {};
-    st.bank = st.gbank = START; save(); render(); renderChart();
+    st.stats = freshStats(); st.cstats = freshCount(); st.gstats = freshGame(); st.gshoe = freshGame(); st.misses = {};
+    st.bank = st.gbank = START; save(); render();
   });
   // Buttons shouldn't keep focus, or Space would re-press them.
   document.addEventListener('click', e => { const b = e.target.closest('button'); if (b) b.blur(); });
+  // Nor should toggles, or the shortcuts would stop working after changing a setting.
+  document.addEventListener('change', e => e.target.blur());
 
   const KEYS = { h: 'hit', 1: 'hit', s: 'stand', 2: 'stand', d: 'double', 3: 'double', p: 'split', 4: 'split', r: 'surrender', 5: 'surrender' };
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     if (e.target.closest?.('input, textarea, select')) return;
-    if (st.cin && countKey(e.key)) return e.preventDefault();
     const k = e.key.toLowerCase();
+    if ((k === ' ' || k === 'enter') && e.target.closest?.('button')) return; // a button reached with Tab
+    if (st.cin && countKey(e.key)) return e.preventDefault();
     if (st.phase === 'bet' && /^[1-5]$/.test(k)) return placeBet(BETS[k - 1]), e.preventDefault();
     if (st.phase === 'insure' && (k === 'y' || k === 'i' || k === 'n')) return insure(k !== 'n'), e.preventDefault();
     let handled = true;
@@ -726,7 +757,7 @@
     else if (k === '?' || k === '/') openPanel('settings');
     else if (k === 'm') setSound(!st.sound);
     else if (k === 'k') checkCount();
-    else if (k === 't') setMode(MODES[(MODES.indexOf(st.mode) + 1) % MODES.length]);
+    else if (k === 't') switchTo(MODES[(MODES.indexOf(st.pending ? st.pending[0] : st.mode) + 1) % MODES.length]);
     else handled = false;
     if (handled) e.preventDefault();
   });

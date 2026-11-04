@@ -87,6 +87,11 @@ for (const [h, up, tc, R, av, exp] of [
   ['6,5', 'A', 0, S17, all, 'hit'], ['6,5', 'A', 1, S17, all, 'double'],
   ['5,4', '2', 1, S17, all, 'double'], ['5,4', '7', 3, S17, all, 'double'], ['6,4', 'A', 4, S17, all, 'double'],
   ['T,6', '9', 5, S17, all, 'stand'], ['A,6', '2', 9, S17, all, 'hit'],
+  // Pairs that aren't split play as their total, so they take that total's index plays.
+  ['5,5', 'T', 3, S17, all, 'hit'], ['5,5', 'T', 4, S17, all, 'double'], ['5,5', 'A', 4, S17, all, 'double'],
+  ['6,6', '2', 2, { ...S17, das: false }, all, 'hit'], ['6,6', '2', 3, { ...S17, das: false }, all, 'stand'],
+  ['7,7', 'T', 3, LS, { ...all, surrender: true }, 'surrender'],
+  ['8,8', '9', 6, S17, all, 'split'], ['6,6', '4', 9, S17, all, 'split'], ['9,9', 'T', 9, S17, all, 'stand'],
 ]) eq(cp(h, up, tc, R, av), exp, `index ${h} vs ${up} at TC ${tc}`);
 console.log(fails ? `${fails}/${n} checks failed` : `all ${n} checks passed`);
 process.exit(fails ? 1 : 0);
