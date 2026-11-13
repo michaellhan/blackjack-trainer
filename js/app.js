@@ -547,7 +547,8 @@
   // ---------- chart ----------
   const ROWS = {
     hard: [[8, '≤8'], ...[9, 10, 11, 12, 13, 14, 15, 16, 17].map(t => [t, String(t)]), [18, '18+']],
-    soft: [13, 14, 15, 16, 17, 18, 19, 20].map(t => [t, 'A,' + (t - 11)]),
+    // Soft 12 is A,A that can't be split again (4 hands already).
+    soft: [[12, 'A,A'], ...[13, 14, 15, 16, 17, 18, 19, 20].map(t => [t, 'A,' + (t - 11)])],
     pair: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(v => [v, v === 11 ? 'A,A' : v === 10 ? 'T,T' : v + ',' + v]),
   };
   const TITLES = { hard: 'Hard totals', soft: 'Soft totals', pair: 'Pairs' };
@@ -578,7 +579,9 @@
     html += `<tr><td>Insurance</td><td>A</td><td>Take at TC ≥ +${Strategy.insurance(st.rules)}</td></tr>`;
     for (const d of Strategy.deviations(R)) {
       if (d.sur && !R.surrender) continue;
-      html += `<tr><td>${d.pair ? 'T,T' : 'Hard ' + d.t}</td><td>${Strategy.upLabel(d.u)}</td><td>${N[d.act]} at TC ${d.below ? '<' : '≥'} ${signed(d.idx)}</td></tr>`;
+      // Where the chart already surrenders, a non-surrender index only applies once surrender is off the table.
+      const noSur = !d.sur && !d.pair && Strategy.code('hard', d.t, d.u, R)[0] === 'R';
+      html += `<tr><td>${d.pair ? 'T,T' : 'Hard ' + d.t}</td><td>${Strategy.upLabel(d.u)}</td><td>${N[d.act]} at TC ${d.below ? '<' : '≥'} ${signed(d.idx)}${noSur ? '<small>if you can\'t surrender</small>' : ''}</td></tr>`;
     }
     html += `</table><h3>Bet ramp<span>$10 units</span></h3><table class="list">`;
     for (const [lbl, tc] of [['≤ +1', 1], ['+2', 2], ['+3', 3], ['+4', 4], ['+5 or more', 5]]) html += `<tr><td>TC ${lbl}</td><td>${usd(ramp(tc) * BET)}</td></tr>`;

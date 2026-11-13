@@ -217,6 +217,7 @@ body[data-mode="count"] .table { justify-content: center; gap: 8px; }
 #chart-body table.list { table-layout: auto; }
 #chart-body table.list td { text-align: left; padding: 0 10px; background: rgba(255, 255, 255, 0.04); font-weight: 500; font-size: 12.5px; }
 #chart-body table.list td:nth-child(2) { width: 34px; text-align: center; color: var(--muted); }
+#chart-body table.list small { margin-left: 6px; font-size: 11px; font-weight: 400; color: var(--muted); }
 .count-input { display: flex; gap: 8px; width: 100%; max-width: 680px; }
 .count-input button, .count-input output { display: grid; place-items: center; }
 .count-input [data-step] { width: 64px; font-size: 22px; }
